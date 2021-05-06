@@ -1,0 +1,437 @@
+/***************************************************************************
+ *            query.gob
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+
+requires 2.0.0
+
+%headertop{
+#include "bima-query-table.h"
+#include "qry_parser.h"
+%}
+
+class Bima:Query from G:Object { 
+
+	public gint num_fields = 0;
+	public GList *fields = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) (list->data)); 
+			}
+			g_list_free(VAR);
+			VAR = NULL;
+		};
+
+	public gint num_tables = 0;
+	public gint num_sub_qry = 0;
+		
+	public GList *tables = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) (list->data)); 
+			}
+			g_list_free(VAR);			
+			VAR = NULL;
+		};
+	
+	public 
+	void dump_tables(self) {
+		GList *list;
+		BimaQueryTable *qry_tmp;
+		
+		if (!self) return ;
+		for (list=g_list_first(self->tables);list != NULL; list = list->next){
+			if (!list->data)
+				break;
+				
+			qry_tmp = (BimaQueryTable *) (list->data);
+			g_print("%s\n" , qry_tmp->table);
+		}
+	};
+	
+	public GList *groups = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+			g_list_free(VAR);			
+			VAR = NULL;
+		};
+		
+	public GList *orders = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+			g_list_free(VAR);			
+			VAR = NULL;
+		};
+
+	public BimaQueryField *wheres = {NULL}
+		destroy { 
+			if (!wheres) 
+				return ;
+			g_object_unref((GObject *) wheres);
+			wheres = NULL;
+		};	
+	
+	public BimaQueryField *havings = {NULL}
+		destroy { 
+			if (!havings) 
+				return ;
+			g_object_unref((GObject *) havings);
+			havings = NULL;
+		};	
+	
+	public gchar*
+	get_entity_alias(self, BimaEntity *entity)
+	{
+		GList *list;
+		gchar *ostr=NULL;
+		
+		for (list=g_list_first(self->tables);list != NULL; list = list->next){
+			if (list->data){
+				ostr = bima_query_table_get_entity_alias((BimaQueryTable *) list->data,entity);
+				if (ostr)
+					return ostr;
+			}
+		}		
+		return NULL;
+	}
+	
+	public BimaAttribute *
+	locate_field_attribute(self,BimaQueryField *qry_field)
+	{
+		return NULL;
+	}
+	/*
+	* TO DO
+	* 	Add field on ambiguous table
+	*	Add define field without attribute
+	*/
+	public gint 
+	validate_fields(self)
+	{
+		GList *flist, *tlist;
+		BimaQueryField *qfield;
+		gint err_num;
+		gchar *star;
+		star = g_strdup("*");
+		err_num = 0;
+		for (flist=g_list_first(self->fields);flist != NULL; flist = flist->next){
+			if (flist->data){
+				qfield = (BimaQueryField *) (flist->data) ;
+				if (g_ascii_strcasecmp(star, qfield->field)) {
+					for (tlist=g_list_first(self->tables);tlist != NULL; tlist = tlist->next){
+						qfield->attribute = bima_query_table_validate_field((BimaQueryTable *) (tlist->data),qfield);
+					}
+				}
+			}
+		}
+		g_free(star);
+		return err_num;
+	}
+	/*
+	* get attribute from sub query for an query field
+	*/
+	public BimaAttribute *
+	get_attribute_sub_query(self, BimaQueryField *qfield)
+	{
+		GList *flist=NULL;
+		BimaAttribute *attribute=NULL;
+		BimaQueryField *sqfield;
+		
+		for (flist=g_list_first(self->fields);flist != NULL; flist = flist->next){
+			if (flist->data){
+				sqfield = (BimaQueryField *) (flist->data) ;
+				if (sqfield->alias) {
+					if (!g_ascii_strcasecmp(sqfield->alias,qfield->field))  
+						attribute = sqfield->attribute;
+				} 
+				else if (!g_ascii_strcasecmp(sqfield->field,qfield->field))  
+					attribute = sqfield->attribute;
+			}
+			if (attribute)
+				return attribute;
+		}
+		return attribute;
+	}
+	
+	public 
+	gint get_number_of_fields(self) {
+		return self->num_fields;
+	}
+
+	public 
+	gint get_number_of_tables(self) {
+		return self->num_tables;
+	}
+
+	public 
+	gint get_number_of_sub_query(self) {
+		return self->num_sub_qry;
+	}
+	
+	public
+	BimaQueryTable *get_nth_table_in_table(self, gint n, gint *nth, BimaQueryTable *qtbl){
+		BimaQueryTable *qtb;
+		
+		if (qtbl->sub_query == NULL) {
+			if (qtbl->table) {
+				if ((*nth) == n)
+					return qtbl;
+			} else {
+				if (qtbl->left_table) 
+					qtb = bima_query_get_nth_table_in_table(self, n , nth,qtbl->left_table);
+				if (qtb) 
+					return qtb;
+				if (qtbl->right_table) 
+					qtb = bima_query_get_nth_table_in_table(self, n , nth,qtbl->right_table);
+				if (qtb) 
+					return qtb;
+			}
+			(*nth)++;
+		}
+		return NULL;
+	}
+		
+	public
+	BimaQueryTable *get_nth_table(self, gint n){
+		GList *tlist ;
+		gint nth;
+		BimaQueryTable *qtable, *qtbl;
+		nth = 0 ;
+		for (tlist=g_list_first(self->tables);tlist != NULL; tlist = tlist->next){
+			qtbl = NULL;			
+			qtable = (BimaQueryTable *)(tlist->data);
+			qtbl = bima_query_get_nth_table_in_table(self, n , &nth,qtable);
+			if (qtbl) 
+				return qtbl;
+		}
+		return NULL;
+	}
+	
+	public 
+	void count_table_in_table(self, BimaQueryTable *qtbl) {
+		if (qtbl->sub_query) {
+			self->num_sub_qry++;
+			bima_query_count_num_of_tables(qtbl->sub_query);
+		} else {
+			if (qtbl->table) {
+				self->num_tables++;
+			} else {
+				if (qtbl->left_table) 
+					bima_query_count_table_in_table(self,qtbl->left_table);
+				if (qtbl->right_table) 
+					bima_query_count_table_in_table(self,qtbl->right_table);
+			}
+		}	
+	}
+	
+	public 
+	void count_num_of_tables(self) {
+		GList *tlist ;
+		BimaQueryTable *qtable;
+		for (tlist=g_list_first(self->tables);tlist != NULL; tlist = tlist->next){
+			qtable = (BimaQueryTable *)(tlist->data);
+			bima_query_count_table_in_table(self,qtable);
+		}				
+	}
+	
+	public 
+	gint count_number_of_fields(self) {
+		GList *qf_list, *tlist;
+		BimaQueryField *qfield;
+		BimaQueryTable *qtable;
+		gchar *star;
+		gint i,n;
+		star = g_strdup("*");
+
+		self->num_fields = 0 ;		
+
+		for (qf_list=g_list_first(self->fields);qf_list != NULL; qf_list = qf_list->next){
+			qfield = (BimaQueryField *)(qf_list->data);
+			if ( !g_ascii_strcasecmp(star, qfield->field)) { //if a star *
+				for (tlist=g_list_first(self->tables);tlist != NULL; tlist = tlist->next){
+					qtable = (BimaQueryTable *)(tlist->data);
+					self->num_fields += bima_query_table_count_number_of_fields(qtable, qfield->table);
+				}
+			} else { // a single field
+				self->num_fields++;
+				// also update num_fields in qtable
+				// look belong to whom this field
+				qtable=NULL;
+				n = self->num_tables + self->num_sub_qry;
+				for (i=0; i < n ; i++){
+					qtable = bima_query_get_nth_table(self,i);
+					if (qtable) {
+						if ( ((qtable->alias) && (!g_ascii_strcasecmp(qtable->alias, qfield->table))) ||
+							 ((!qtable->alias) && (qtable->table) && (!g_ascii_strcasecmp(qtable->table, qfield->table))) 
+							) {
+							qtable->num_fields++;
+						}
+					}
+				}			
+			}
+		}
+		g_free(star);
+		return self->num_fields;
+	}
+
+	public
+	GObject *get_nth_attribute_sub(self, gint n)
+	{
+		GObject *attribute=NULL;
+		BimaQueryTable *qtbl = NULL;
+		BimaQueryField *qfld = NULL;
+		attribute = bima_query_get_nth_attribute(self, n, &qtbl, &qfld);
+		return attribute;
+	}
+	// we need qtbl and qfld to make sure attribute is belong to which table	
+	public
+	GObject *get_nth_attribute(self, gint n, BimaQueryTable **qtbl, BimaQueryField **qfld)
+	{
+		GObject *attribute=NULL;
+		GList *qf_list, *tlist;
+		BimaQueryField *qfield;
+		BimaQueryTable *qtable;
+		gint nth;
+		gchar *star;
+		
+		star = g_strdup("*");
+		nth = 0 ;
+		for (qf_list=g_list_first(self->fields);qf_list != NULL; qf_list = qf_list->next){
+			if (( nth <= n ) && (attribute == NULL)) {
+				qfield = (BimaQueryField *)(qf_list->data); 
+				*qfld = qfield;
+				if ( !g_ascii_strcasecmp(star, qfield->field)) { //if a star *
+					for (tlist=g_list_first(self->tables);tlist != NULL; tlist = tlist->next){
+						qtable = (BimaQueryTable *)(tlist->data);
+						*qtbl = qtable;
+						attribute = bima_query_table_get_nth_attribute(qtable, qfield->table,n, &nth, qtbl);
+					}
+				} else {  // a single field					
+					if (nth == n)
+						attribute = (GObject *) qfield->attribute;
+					nth++;
+				}
+			} 
+		}
+		g_free(star);
+		return (GObject *)attribute;
+	}
+	
+	public 
+	gchar *get_str(self)
+	{
+		gchar *ostr=NULL;
+	
+		if (self == NULL)
+			return NULL;	
+	
+		if (self->fields && self->tables) {
+			ostr = g_strconcat("SELECT ",bima_query_get_fields_str(self->fields),"\n",NULL);
+			ostr = g_strconcat(ostr, "FROM ",bima_query_get_tables_str(self->tables),"\n",NULL);
+			if (self->wheres) {
+				ostr = g_strconcat(ostr, " WHERE ",bima_query_field_get_str(self->wheres),"\n",NULL);
+			}
+			if (self->groups) {
+				ostr = g_strconcat(ostr, " GROUP BY ",bima_query_get_fields_str(self->groups),"\n",NULL);
+			}
+			if (self->havings) {
+				ostr = g_strconcat(ostr, " HAVING ",bima_query_field_get_str(self->havings),"\n",NULL);
+			}
+			if (self->orders) {
+				ostr = g_strconcat(ostr, " ORDER BY ",bima_query_get_fields_str(self->orders),"\n",NULL);
+			}
+		}
+		//printf("%s",tmp_str);
+		//g_free(tmp_str);	
+		return ostr;	
+	}
+	
+	public 
+	gchar *get_fields_str(GList *plist) 
+	{
+		GList *list;
+		BimaQueryField *qfield;
+		gchar *ostr=NULL;
+		
+		for (list=g_list_first(plist);list != NULL; list = list->next){
+			if (list->data) {
+				qfield = (BimaQueryField *) list->data;
+				if (!ostr) 
+					ostr = bima_query_field_get_str(qfield);
+				else
+					ostr = g_strconcat(ostr,g_strdup_printf(", %s",bima_query_field_get_str(qfield),NULL));
+			} 
+		}
+		return ostr;
+	}
+
+	public 
+	gchar *get_tables_str(GList *tlist) 
+	{
+		GList *list;
+		BimaQueryTable *qtable;
+		gchar *ostr=NULL;
+		
+		for (list=g_list_first(tlist);list != NULL; list = list->next){
+			if (list->data) {
+				qtable = (BimaQueryTable *) list->data;
+				if (!ostr) 
+					ostr = bima_query_table_get_str(qtable);
+				else
+					ostr = g_strconcat(ostr,g_strdup_printf(", %s",bima_query_table_get_str(qtable),NULL));
+
+			} 
+		}
+		return ostr;
+	}
+						
+	public BimaQuery*
+	new (void)
+	{
+		return GET_NEW;
+	}
+
+}
+
+/*
+	public void 
+	sql_parser(self, gchar *sql)
+	{
+		if (self != NULL) 
+			g_object_unref((GObject *) (self));
+	 	self = NULL;
+
+ 		qry_scan_string(sql);
+ 		qryparse();	
+ 		bima_query_count_num_of_tables(self);
+ 		bima_query_count_number_of_fields(self);
+	}
+*/

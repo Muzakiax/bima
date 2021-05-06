@@ -1,0 +1,325 @@
+/***************************************************************************
+ *            entity.gob
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+ 
+requires 2.0.0
+
+%headertop{
+#include <stdio.h>
+
+#include "bima-attribute.h"
+#include "bima-foreign-key.h"
+
+
+#ifndef __TYPEDEF_BIMA_APP_DATA__
+#define __TYPEDEF_BIMA_APP_DATA__
+typedef struct _BimaAppData BimaAppData;
+#endif
+
+//typedef enum {
+//	ENTITY_MASTER,
+//	ENTITY_TRANSACTION
+//} BimaEntityType;
+
+extern int bima_relation_get_num_of_attribute();
+extern GList *bima_relation_get_attributes();
+extern BimaEntity *bima_app_data_find_entity();
+extern BimaRelation *bima_app_data_find_relation();
+
+%}
+
+class Bima:Entity from G:Object { 
+	public gchar *id = { NULL }
+		destroywith g_free;
+	property STRING id
+		(nick = "id",
+		 blurb = "id of entity",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+	public gchar *name = { NULL }
+		destroywith g_free;
+	property STRING name
+		(nick = "name",
+		 blurb = "name of entity",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+	public gchar *abbreviation = { NULL }
+		destroywith g_free;
+	property STRING abbreviation
+		(nick = "abbreviation",
+		 blurb = "abbreviation of entity",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+	public gchar *description = { NULL }
+		destroywith g_free;
+	property STRING description
+		(nick = "description",
+		 blurb = "description of entity",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *module_id = { NULL }
+		destroywith g_free;
+	property STRING module_id
+		(nick = "module id",
+		 blurb = "module of entity",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public GList *attributes = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+		};
+	public gint  num_of_attribute = 0;
+
+	public GList *foreign_key = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+		};
+	public gint  num_of_foreign_key = 0;
+
+	public GList *foreign_attr = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+		};
+	public gint  num_of_foreign_attribute = 0;
+
+	public gboolean is_weak = FALSE;
+	public int  num_of_key = 0;
+	
+
+	public void
+	add_attribute( self, BimaAttribute *attribute)
+	{
+		if (attribute->is_key==TRUE) {
+			self->attributes = g_list_prepend(self->attributes, (gpointer) attribute);
+			self->num_of_key++;
+		}else
+			self->attributes = g_list_append(self->attributes, (gpointer) attribute);
+		attribute->parent = (GObject *) self;
+		self->num_of_attribute++;
+	}
+
+	public void
+	add_foreign_key( self, BimaForeignKey *fk)
+	{
+		self->foreign_key = g_list_append(self->foreign_key, (gpointer) fk);
+		self->num_of_foreign_key++;
+	}
+
+	public void
+	add_foreign_attribute( self, BimaForeignKey *fk)
+	{
+		self->foreign_attr = g_list_append(self->foreign_attr, (gpointer) fk);
+		// query need the real number of foreign attribute 
+		if (fk->relation)
+			self->num_of_foreign_attribute += bima_relation_get_num_of_attribute(fk->relation) ; //->num_of_attribute;
+		//else
+		//	self->num_of_foreign_attribute++;
+	}
+
+	public GList*
+	get_all_attribute(self, BimaAppData *app_data)
+	{
+		BimaEntity *entity, *fk_entity;
+		BimaAttribute *attribute, *cp_attribute;
+		BimaForeignKey *fk;
+		BimaRelation *relation;
+		gchar *name=NULL;
+		GList *rlist = NULL, *list1, *list;
+
+		for (list= g_list_first(self->attributes);list != NULL; list = list->next){
+			if (list->data) {
+				attribute = bima_attribute_copy((BimaAttribute *)list->data);
+				//attribute->attribute_type =  ATTRIBUTE;				
+				rlist = g_list_append(rlist, (gpointer) attribute);				
+			}
+		}
+	
+		for (list1= g_list_first(self->foreign_key);list1 != NULL; list1 = list1->next){
+			if (list1->data) 
+				fk = (BimaForeignKey *)list1->data;
+			else
+				continue ;
+
+			fk_entity = bima_app_data_find_entity(app_data,fk->pk_obj_id);
+			for (list= g_list_first(fk_entity->attributes);list != NULL; list = list->next){
+				if (list->data)
+					attribute = bima_attribute_copy((BimaAttribute *)list->data);
+				else
+					continue;
+					
+				if (attribute->is_key == 1) {
+					attribute->attribute_type =  ATTRIBUTE_FOREING_KEY;
+					name = g_strdup_printf("%s_%s", fk->name,attribute->name);
+					g_free(attribute->name);
+					attribute->name = name;
+					rlist = g_list_append(rlist, (gpointer) attribute);				
+				}
+			}
+		}
+
+		for (list1= g_list_first(self->foreign_attr);list1 != NULL; list1 = list1->next){
+			if (list1->data) 
+				fk = (BimaForeignKey *)list1->data;
+
+			relation = bima_app_data_find_relation(app_data, fk->pk_obj_id);
+			for (list= g_list_first(bima_relation_get_attributes(relation));list != NULL; list = list->next){
+				if (list->data) {
+					attribute = bima_attribute_copy((BimaAttribute *)list->data);
+					attribute->attribute_type =  ATTRIBUTE_FOREING;
+					name = g_strdup_printf("%s_%s", fk->name,attribute->name);
+					g_free(attribute->name);
+					attribute->name = name;
+					rlist = g_list_append(rlist, (gpointer) attribute);				
+				}
+			}
+		}
+	
+		return rlist;
+	}
+	
+	// return attribute  
+	// or foreign key
+	public 
+	GObject *get_nth_attribute(self, gint n)
+	{
+		GList *list=NULL, *list1 = NULL;
+		BimaForeignKey *fk;		
+
+		gint i;
+		i=0;
+		for (list=g_list_first(self->attributes);list != NULL; list = list->next){
+			//g_printf("Ent %d of %d \n", i, n);
+			if (i==n)
+				return (GObject *) (list->data);
+			i++;			
+		}
+		for (list=g_list_first(self->foreign_key);list != NULL; list = list->next){
+			//g_printf("Ent %d of %d \n", i, n);
+			if (i==n)
+				return (GObject *) (list->data);
+			i++;			
+		}
+
+		for (list=g_list_first(self->foreign_attr);list != NULL; list = list->next){
+			if (list->data) {
+				fk = (BimaForeignKey *) list->data;
+				for (list1=g_list_first(bima_relation_get_attributes(fk->relation));list1 != NULL; list1 = list1->next){
+					if (i==n)
+						return (GObject *) (list1->data);
+					i++;							
+				}
+			}
+		}
+		
+		return NULL;
+	}
+
+	public gchar *
+	get_pk_string(self, gchar *separator, gchar *alias)
+	{
+		gchar *str_tmp=NULL;
+		BimaAttribute *attribute;
+		GList *list;
+	
+		if (self) {			
+			for (list=g_list_first(self->attributes);list != NULL; list = list->next){			
+				if (list->data) { 
+					attribute = (BimaAttribute *) list->data;
+					if ( attribute->is_key == 1 ) {
+						if (!str_tmp)
+							str_tmp = g_strdup_printf("%s.%s",alias,attribute->name);
+						else 
+							str_tmp = g_strconcat( str_tmp , separator,  g_strdup_printf("%s.%s",alias,attribute->name),NULL);
+					}
+				}
+			}
+		}
+		return str_tmp;	
+	}
+	
+	public void
+	write_to_xml( self , FILE *ofile )
+	{
+		GList *list;
+
+		fprintf(ofile, "\t<Entity id=\"%s\" name=\"%s\" module=\"%s\" is_weak=\"%d\" num_of_key=\"%d\" abbreviation=\"%s\">\n", \ 
+			self->id , self->name, self->module_id, self->is_weak, self->num_of_key, self->abbreviation);
+
+		if (self->description)
+			fprintf(ofile, "\t\t<Description>%s</Description>\n", self->description);
+		
+		fprintf(ofile, "\t\t<Attributes>\n");
+		for (list=g_list_first(self->attributes);list != NULL; list = list->next){
+			if (list->data) 
+				bima_attribute_write_to_xml((BimaAttribute *) list->data, ofile);			
+		}
+		fprintf(ofile, "\t\t</Attributes>\n");
+
+		if (self->foreign_key) {
+			fprintf(ofile, "\t\t<ForeignKeys>\n");
+			for (list=g_list_first(self->foreign_key);list != NULL; list = list->next){
+				if (list->data) 
+					bima_foreign_key_write_to_xml((BimaForeignKey *) list->data, ofile);			
+			}
+			fprintf(ofile, "\t\t</ForeignKeys>\n");
+		}
+		
+		if (self->foreign_attr) {
+			fprintf(ofile, "\t\t<ForeignAttributes>\n");
+			for (list=g_list_first(self->foreign_attr);list != NULL; list = list->next){
+				if (list->data) 
+					bima_foreign_key_write_to_xml((BimaForeignKey *) list->data, ofile);			
+			}
+			fprintf(ofile, "\t\t</ForeignAttributes>\n");
+		}
+		fprintf(ofile, "\t</Entity>\n");
+	}
+	
+	public BimaEntity*
+	new (void)
+	{
+		return GET_NEW;
+	}
+}
+

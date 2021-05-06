@@ -1,0 +1,37 @@
+requires 2.0.0
+
+%headertop{
+#include <stdio.h>
+#include <stdlib.h>
+#include "bma-plugin.h"
+%}
+
+class Bma:Sample:Plugin from Bma:Plugin { 
+	public gchar *name = {g_strdup("Sample Plugin");}
+		destroywith g_free;
+
+	public gchar *author = {g_strdup("Anas Muzakir");}
+		destroywith g_free;
+
+	public void *
+	activate( BmaPlugin *plugin, BmaAppGui *appgui)
+	{
+		return;
+	}
+
+
+	public void *
+	deactivate( BmaPlugin *plugin, BmaAppGui *appgui)
+	{
+		return;
+	}
+
+
+	public void *
+	generate( FILE *ofile, gchar *token , BmaAppGui *appgui)
+	{
+		return;
+	}
+
+}
+

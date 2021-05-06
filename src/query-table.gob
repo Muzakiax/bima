@@ -1,0 +1,376 @@
+/***************************************************************************
+ *            query-table.gob
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+
+requires 2.0.0
+
+%headertop{
+#include "bima-query-field.h"
+#include "bima-entity.h"
+//#include "property.h"
+%}
+
+%h{
+#ifndef __TYPEDEF_BIMA_QUERY__
+#define __TYPEDEF_BIMA_QUERY__
+typedef struct _BimaQuery BimaQuery;
+
+#endif
+
+extern BimaAttribute *bima_query_get_attribute_subquery();
+extern GList *bima_relation_get_attributes();
+
+//extern void 
+//bima_property_combo_model_list_add(char *prop_name, gchar *title, gchar *str_val, gint *int_val);
+
+extern gchar *bima_query_get_str(BimaQuery *self);
+extern gint bima_query_count_number_of_fields(BimaQuery *self);
+extern GObject *bima_query_get_nth_attribute_sub(BimaQuery *self, gint n);
+%}
+
+
+class Bima:Query:Table from G:Object { //FROM
+	public gint num_fields = 0;
+	public gchar *alias = { NULL }
+		destroywith g_free;
+/*		
+	property STRING alias
+		(nick = "alias",
+		 blurb = "alias",
+		 default_value = NULL,
+		 export,
+		 link
+		);		
+*/
+	public gchar *table = { NULL }
+		destroywith g_free;
+/*
+	property STRING table
+		(nick = "table",
+		 blurb = "table",
+		 default_value = NULL,
+		 export,
+		 link
+		);		
+*/
+	public BimaQuery *sub_query ={NULL}
+		destroy { 
+			if (!sub_query) 
+				return ;
+			g_object_unref((GObject *) sub_query);
+			sub_query = NULL;
+		};	
+	
+	public gint join_type = 0; 
+
+	public BimaQueryField *join_rule = {NULL}
+		destroy { 
+			if (!join_rule) 
+				return ;
+			g_object_unref((GObject *) join_rule);
+			join_rule = NULL;
+		};	
+		
+	public BimaQueryTable *left_table = {NULL}
+		destroy { 
+			if (!left_table) 
+				return ;
+			g_object_unref((GObject *) left_table);
+			left_table = NULL;
+		};		
+		
+	public BimaQueryTable *right_table = {NULL}
+		destroy { 
+			if (!right_table) 
+				return ;
+			g_object_unref((GObject *) right_table);
+			right_table = NULL;
+		};	
+	// it's posible as relation not only entity	
+	public GObject *entity = {NULL}
+		destroy { 
+			entity = NULL;
+		};
+
+	public gchar*
+	get_entity_alias(self, BimaEntity *entity)
+	{
+		gchar *ostr=NULL;
+		
+		if (self->entity || self->table ) {
+			if ( self->entity == entity ) {
+				if (self->alias) 
+					return self->alias;
+				else 
+					return self->table;
+			}
+		} 
+		else if (self->sub_query) {
+			ostr =  bima_query_get_entity_alias(self->sub_query, entity);
+			if (ostr)
+				return self->alias ;
+		}
+		else { 
+			if (self->left_table) 
+				ostr = bima_query_table_get_entity_alias(self->left_table, entity);	
+			if (!ostr && self->right_table)
+				ostr = bima_query_table_get_entity_alias(self->left_table, entity);	
+		}
+		return ostr;
+	}
+
+	public BimaAttribute *
+	validate_field(self, BimaQueryField *qfield)
+	{
+		GList *list=NULL;
+		BimaQueryField *sqfield;
+		BimaAttribute *attribute = NULL;
+		BimaForeignKey *fk = NULL;
+		gchar *name=NULL;
+		 
+		if (self->join_type == 0) {
+			if (self->table) {
+				if (self->alias) {
+					if (!g_ascii_strcasecmp(qfield->table,self->alias)) {
+						attribute = (BimaAttribute *) bima_get_object_by_prop(((BimaEntity *)(self->entity))->attributes , "name", qfield->field);
+						// find if attribute as foreign attribute
+						if ( (attribute == NULL) && BIMA_IS_ENTITY(self->entity) &&  ((BimaEntity *)(self->entity))->foreign_attr) {
+							for (list=g_list_first(((BimaEntity *)(self->entity))->foreign_attr);list != NULL; list = list->next){
+								if (list->data) {
+									fk = (BimaForeignKey *) list->data;
+
+									// foreign attr in database table is fk->name + "_" + attr->name
+									// we have to remove fk->name + "_"
+									if (name != NULL) 
+										g_free(name);
+										 
+									if ( g_utf8_strlen(qfield->field,-1) >  g_utf8_strlen(fk->name,-1)) {
+										name = g_strdup(qfield->field + g_utf8_strlen(fk->name,-1) + 1);
+									} else {
+										name = g_strdup(qfield->field);
+									}
+									attribute = (BimaAttribute *) bima_get_object_by_prop( bima_relation_get_attributes(fk->relation) , "name", name);
+								}
+							}
+						}
+						// find if attribute as foreign key attribute
+						if ( (attribute == NULL) &&  ((BimaEntity *)(self->entity))->foreign_key) {
+							for (list=g_list_first(((BimaEntity *)(self->entity))->foreign_key);list != NULL; list = list->next){
+								if (list->data) {
+									fk = (BimaForeignKey *) list->data;
+									// foreign attr in database table is fk->name + "_" + attr->name
+									// we have to remove fk->name + "_"
+									if (name != NULL) 
+										g_free(name);
+										 
+									if ( g_utf8_strlen(qfield->field,-1) >  g_utf8_strlen(fk->name,-1)) {
+										name = g_strdup(qfield->field + g_utf8_strlen(fk->name,-1) + 1);
+									} else {
+										name = g_strdup(qfield->field);
+									}
+									attribute = (BimaAttribute *) bima_get_object_by_prop( bima_relation_get_attributes(fk->relation) , "name", name);
+								}
+							}
+						}
+					}
+
+				} else {
+					if (!g_ascii_strcasecmp(qfield->table,self->table)) {
+						attribute = (BimaAttribute *) bima_get_object_by_prop(((BimaEntity *)(self->entity))->attributes , "name", qfield->field);
+						// find if attribute as foreign attribute
+						if ( (attribute == NULL) && BIMA_IS_ENTITY(self->entity) &&  ((BimaEntity *)(self->entity))->foreign_attr) {
+							for (list=g_list_first(((BimaEntity *)(self->entity))->foreign_attr);list != NULL; list = list->next){
+								if (list->data) {
+									fk = (BimaForeignKey *) list->data;
+									// foreign attr in database table is fk->name + "_" + attr->name
+									// we have to remove fk->name + "_"
+									if (name != NULL) 
+										g_free(name);
+										 
+									if ( g_utf8_strlen(qfield->field,-1) >  g_utf8_strlen(fk->name,-1)) {
+										name = g_strdup(qfield->field + g_utf8_strlen(fk->name,-1) + 1);
+									} else {
+										name = g_strdup(qfield->field);
+									}
+									attribute = (BimaAttribute *) bima_get_object_by_prop( bima_relation_get_attributes(fk->relation) , "name", name);
+								}
+							}
+						}
+						// find if attribute as foreign key attribute
+						if ( (attribute == NULL) &&  ((BimaEntity *)(self->entity))->foreign_key) {
+							for (list=g_list_first(((BimaEntity *)(self->entity))->foreign_key);list != NULL; list = list->next){
+								if (list->data) {
+									fk = (BimaForeignKey *) list->data;
+									// foreign attr in database table is fk->name + "_" + attr->name
+									// we have to remove fk->name + "_"
+									if (name != NULL) 
+										g_free(name);
+										 
+									if ( g_utf8_strlen(qfield->field,-1) >  g_utf8_strlen(fk->name,-1)) {
+										name = g_strdup(qfield->field + g_utf8_strlen(fk->name,-1) + 1);
+									} else {
+										name = g_strdup(qfield->field);
+									}
+									attribute = (BimaAttribute *) bima_get_object_by_prop( bima_relation_get_attributes(fk->relation) , "name", name);
+								}
+							}
+						}
+					}
+				}
+			} 
+			else if (self->sub_query) {
+				attribute = bima_query_get_attribute_sub_query(self->sub_query, qfield);
+			}
+		}
+		else {
+			if (self->left_table)
+				attribute = bima_query_table_validate_field(self->right_table,qfield);
+			if (self->right_table && (!attribute))
+				attribute = bima_query_table_validate_field(self->right_table,qfield);
+		}
+		return attribute;
+	}
+	
+	public 
+	gint count_number_of_fields(self, gchar *star_tbl)
+	{
+		//GList *attr_list;
+		gint n_field ;
+		
+		n_field = 0 ;	
+		if (self->join_type == 0) {
+			if ((star_tbl == NULL) || 
+				((star_tbl != NULL) && (self->alias != NULL) && (!g_ascii_strcasecmp(star_tbl, self->alias))) ||
+				((star_tbl != NULL) && (self->alias == NULL) && (self->table != NULL) && (!g_ascii_strcasecmp(star_tbl, self->table))) ) {
+				if (self->sub_query == NULL ) {
+					
+					n_field = ((BimaEntity *) (self->entity))->num_of_attribute;
+					n_field += ((BimaEntity *) (self->entity))->num_of_foreign_key;
+					if (BIMA_IS_ENTITY(self->entity)) { 
+						n_field += ((BimaEntity *) (self->entity))->num_of_foreign_attribute;
+						
+					}
+				} else {
+					n_field = bima_query_count_number_of_fields(self->sub_query);
+					
+				}
+				self->num_fields += n_field;
+			}	
+		} else {
+			n_field = bima_query_table_count_number_of_fields(self->left_table, star_tbl);
+			n_field += bima_query_table_count_number_of_fields(self->right_table, star_tbl);
+		}	
+		return n_field;
+	}
+
+	public 
+	GObject *get_nth_attribute(self, gchar *star_tbl, gint n, gint *nth,BimaQueryTable **qtbl)
+	{
+		GObject *attribute =NULL;
+		GList *attr_list;
+		BimaEntity *entity;
+		gint i, n_fatrr;
+		// kl bukan inner join dan sejenisnya ...
+		if (self->join_type == 0) {
+			// cek jika aliasnya berkesesuaian jika a.* atau * saja
+			if ((star_tbl == NULL) || 
+				((star_tbl != NULL) && (self->alias != NULL) && (!g_ascii_strcasecmp(star_tbl, self->alias))) ||
+				((star_tbl != NULL) && (self->alias == NULL) && (self->table != NULL) && (!g_ascii_strcasecmp(star_tbl, self->table))) ) {
+				// kl bkn sub query
+				if (self->sub_query == NULL ) {
+					entity = (BimaEntity *) (self->entity);
+					if (BIMA_IS_ENTITY(self->entity)) 
+						n_fatrr = entity->num_of_foreign_attribute;
+					else
+						n_fatrr = 0;
+						
+					if ( n >= ((*nth) + entity->num_of_attribute + entity->num_of_foreign_key + n_fatrr )) {
+						*nth += entity->num_of_attribute  + entity->num_of_foreign_key + n_fatrr;
+						return NULL;
+					} else  {
+						//if (BIMA_IS_ENTITY(self->entity)) 						
+						attribute = bima_entity_get_nth_attribute(entity, n - (*nth)  );
+						*nth += (n - (*nth) );
+					}
+				} else {
+					i = bima_query_count_number_of_fields(self->sub_query);
+					if ( n >= ( *nth + i)) {
+						*nth += i;
+						return NULL;
+					} else {
+						
+						attribute = bima_query_get_nth_attribute_sub(self->sub_query,(n - (*nth)));
+						*nth += (n - (*nth)  );
+					}
+				}
+			}	
+		} else {
+			*qtbl = self->left_table;
+			attribute = bima_query_table_get_nth_attribute(self->left_table, star_tbl, n, nth,qtbl);
+			if ((attribute == NULL) &&  (*nth < n)) {
+				*qtbl = self->right_table;
+				attribute = bima_query_table_get_nth_attribute(self->right_table, star_tbl, n, nth,qtbl);
+			}
+		}	
+		return attribute;
+	}	
+	
+	public 
+	gchar *get_str(self) 
+	{
+		gchar *ostr=NULL;
+
+		if (self->join_type == 0) {
+			if (self->table) 
+				ostr = g_strdup_printf("%s",self->table);
+			else if (self->sub_query) {
+				ostr = g_strdup(" ( ");
+				ostr = g_strconcat(ostr,bima_query_get_str(self->sub_query),NULL);
+				ostr = g_strconcat(ostr," ) ",NULL);
+			}
+		} 
+		else {
+			ostr = bima_query_table_get_str(self->left_table);
+			switch (self->join_type) {
+				case 1:
+					ostr = g_strconcat(ostr," INNER JOIN ",NULL);
+					break;
+				case 2:
+					ostr = g_strconcat(ostr," RIGHT OUTER JOIN ",NULL);
+					break;
+				case 3:
+					ostr = g_strconcat(ostr," LEFT OUTER JOIN ",NULL);
+					break;			
+			}
+			ostr = g_strconcat(ostr,bima_query_table_get_str(self->right_table),NULL);
+			ostr = g_strconcat(ostr,g_strdup_printf(" ON %s", bima_query_field_get_str(self->join_rule)),NULL);
+		}
+		if (self->alias) 
+			ostr = g_strconcat(ostr, "  ",self->alias,NULL);
+		return ostr;	
+	}
+	
+	public BimaQueryTable*
+	new (void)
+	{
+		return GET_NEW;
+	}
+
+}

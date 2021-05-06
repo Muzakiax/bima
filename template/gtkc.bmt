@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<BimaTemplate name="GTK+ Using C" index="main.c" dir="cgtk" app_type="cgtk" plugin="cgtk/libcgtk.la">
+  <Entity name="Entity" prefix="obj" suffix="" fileformat="p-f-s">
+	<Template file="template_class.h"/>
+	<Template file="template_class.c"/>
+  </Entity>
+  <Forms >
+    <Form id="0" name="Form List Type" prefix="frm" suffix="list" fileformat="p_f_s" image_file="form1.png" relation_type="MTO1">
+		<Template file="template_form2.c"/>
+		<!--<Properties>
+			<Property name="num_of_col" title="Number Of Column" type="int" />
+			<Property name="lbl_of_col" title="Label Of Column" type="string" />
+		</Properties>-->
+    </Form>
+    <Form id="4" name="Form Input Sgl" prefix="frm" suffix="input" fileformat="p_f_s" image_file="form2.png" relation_type="NONE">
+		<!--<Template file="template_form1.c"/>-->
+		<Template file="template_form_input.c"/>
+		<Template file="template_form_input.h"/>
+    </Form>
+  </Forms>
+  <Reports >
+    <Report id="2" name="Report Type 1" prefix="rpt" suffix="list"  fileformat="p_f_s" image_file="./form2.png" relation_type="1TO1">
+		<Template file="template_report1.c"/>
+	</Report>
+    <Report id="3" name="Report Type 2" prefix="rpt" suffix="det" fileformat="p_f_s" image_file="./form1.png" relation_type="MTO1">
+		<Template file="template_report1.c"/>
+	</Report>
+  </Reports>
+  <Additions>
+  	<Addition name="interface">
+  		<Template file="template_interface.c"/>
+  		<Template file="template_interface.h"/>
+  	</Addition>
+  	<Addition name="main">
+  		<Template file="template_main.c"/>
+  	</Addition>
+  	<Addition name="makefile">
+  		<Template file="template_makefile"/>
+  	</Addition>
+  </Additions>
+</BimaTemplate>

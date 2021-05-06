@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<BimaTemplate name="WEB Using PHP" index="template_index.php" dir="php" app_type="webphp"  plugin="phpweb/libphpweb.la">
+  <Forms>
+    <Form id="0" name="Form List Type"  prefix="frm" suffix="list" fileformat="p_f_s" image_file="form1.png" relation_type="NONE">
+		<Template file="template_list.php"/>
+    </Form>
+    <Form id="1" name="Form Input Type"  prefix="frm" suffix="input" fileformat="p_f_s" image_file="form2.png" relation_type="NONE">
+		<Template file="template_input.php"/>
+    </Form>
+  </Forms>
+  <Reports>
+    <Report id="2" name="Report Type 1"  prefix="rpt" suffix="list"  fileformat="p_f_s" image_file="./form2.png" relation_type="NONE">
+		<Template file="template_rpt_list.php"/>
+    </Report>
+    <Report id="3" name="Report Type 2"  prefix="rpt" suffix="detail" fileformat="p_f_s" image_file="./form1.png" relation_type="NONE">
+		<Template file="template_input.php"/>
+    </Report>
+  </Reports>
+  <Additions>
+  	<Addition name="index">
+  		<Template file="template_index.php"/>
+  	</Addition>
+  	<Addition name="include">
+  		<Template file="template_include.php"/>
+  	</Addition>
+  </Additions>  
+</BimaTemplate>

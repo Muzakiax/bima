@@ -1,0 +1,181 @@
+/***************************************************************************
+ *            attribute.gob
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+
+requires 2.0.0
+
+%headertop{
+#include <stdio.h>
+
+typedef enum {
+	ATTRIBUTE,
+	ATTRIBUTE_FOREING,
+	ATTRIBUTE_FOREING_KEY
+} BimaAttributeType;
+
+%}
+
+
+class Bima:Attribute from G:Object { 
+	public gchar *id = NULL 
+		destroywith g_free;
+	property STRING id
+		(nick = "id",
+		 blurb = "id of attribute",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+	public gchar *name = NULL
+		destroywith g_free;
+	property STRING name
+		(nick = "name",
+		 blurb = "name of attribute",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+	public gchar *title  = NULL			//of control_type
+		destroywith g_free;
+	property STRING title
+		(nick = "title",
+		 blurb = "title of attribute",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+	public gboolean is_key = FALSE;
+	public gboolean is_weak = FALSE;
+	public gboolean is_derived = FALSE;
+	public gboolean is_multivalued = FALSE;
+	public gboolean not_null = FALSE;
+	property BOOLEAN not_null
+		(nick = "not_null",
+		 blurb = "not_null of attribute",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *field_type = { g_strdup("varchar");} //integer, varchar, date ....
+		destroywith g_free;
+	property STRING field_type
+		(nick = "field_type",
+		 blurb = "field_type of attribute",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gint length = 25; 
+	property INT length
+		(nick = "length",
+		 blurb = "length of attribute",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *control_type = { g_strdup("Text");} //Text, Lable, Combobox ....
+		destroywith g_free;	
+	property STRING control_type
+		(nick = "control_type",
+		 blurb = "control_type of attribute",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+		
+	public gchar *parameter = NULL
+		destroywith g_free;		//of control_type
+	property STRING parameter
+		(nick = "parameter",
+		 blurb = "parameter of attribute",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+	public gchar *description = NULL	
+		destroywith g_free;
+	property STRING description
+		(nick = "description",
+		 blurb = "description of attribute",
+		 default_value = NULL,
+		 export,
+		 link
+		);		
+	public GObject *parent = NULL // will be asign when add to entity
+		destroy {
+			parent = NULL;
+		};
+
+	public BimaAttributeType attribute_type = ATTRIBUTE;
+
+	public BimaAttribute*
+	copy(self) 
+	{
+		BimaAttribute* attr = GET_NEW;
+		attr->id = g_strdup(self->id);
+		attr->name = g_strdup(self->name);
+		attr->is_key = self->is_key ;
+		attr->is_weak = self->is_weak ;
+		attr->not_null = self->not_null ;
+		attr->field_type = g_strdup(self->field_type) ;
+		attr->length = self->length ;
+		attr->control_type = g_strdup(self->control_type);
+		attr->attribute_type = self->attribute_type;
+		
+		if (self->title)
+			attr->title = g_strdup(self->title);
+		
+		if (self->parameter)
+			attr->parameter = g_strdup(self->parameter);
+
+		if (self->description)
+			attr->description = g_strdup(self->description);
+			
+		return attr;
+	}
+	
+	public void
+	write_to_xml( self , FILE *ofile )
+	{
+		fprintf(ofile, "\t\t\t<Attribute id=\"%s\" name=\"%s\" is_key=\"%d\" is_weak=\"%d\" not_null=\"%d\" field_type=\"%s\" length=\"%d\" control_type=\"%s\">\n", \ 
+			self->id , self->name, self->is_key, self->is_weak, self->not_null, self->field_type , self->length, self->control_type);
+
+		if (self->title)
+			fprintf(ofile, "\t\t\t\t<Title>%s</Title>\n", self->title);
+		
+		if (self->parameter)
+			fprintf(ofile, "\t\t\t\t<Parameter>%s</Parameter>\n", self->parameter);
+
+		if (self->description)
+			fprintf(ofile, "\t\t\t\t<Description>%s</Description>\n", self->description);
+			
+		fprintf(ofile, "\t\t\t</Attribute>\n");
+	}
+
+	public BimaAttribute*
+	new (void)
+	{
+		return GET_NEW;
+	}
+
+}

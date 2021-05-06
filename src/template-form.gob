@@ -1,0 +1,173 @@
+/***************************************************************************
+ *            template-form.gob
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+
+requires 2.0.0
+
+%headertop{
+#include <libxml/parser.h>
+#include <libxml/tree.h>
+
+#include "bima-relation.h"
+#include "bima-property.h"
+%}
+
+%{
+
+GList *
+load_properties(xmlNodePtr xml_node ) {
+	
+	GList* list=NULL;
+	BimaProperty *prop;
+	xmlNodePtr xml_child_node;
+	gchar *name, *type, *title;
+	
+	xml_child_node = xml_node->children;
+	while ( xml_child_node != NULL ) {
+		if (!xmlStrcmp(xml_child_node->name, (const xmlChar *)"Property")) {
+			name = (gchar *) xmlGetProp(xml_child_node,"name");
+			type = (gchar *) xmlGetProp(xml_child_node,"type");
+			title = (gchar *) xmlGetProp(xml_child_node,"title");
+			
+			if ((name) && (type))
+				prop = bima_property_new(name, title, type);
+			//g_printf("add prop tmplt %s %s\n", prop->name, prop->type);
+			list = g_list_append(list, (gpointer) prop);
+		}
+		xml_child_node = xml_child_node->next ;
+	}
+	return list;
+}
+
+%}
+
+class Bima:Template:Form from G:Object { 
+	public gchar *id = NULL
+		destroywith g_free;
+	property STRING id
+		(nick = "id",
+		 blurb = "id of template form",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+		
+	public gchar *name = NULL
+		destroywith g_free;
+
+//	public gchar *file = NULL
+//		destroywith g_free;
+
+	public gchar *prefix = NULL
+		destroywith g_free;
+
+	public gchar *suffix = NULL
+		destroywith g_free;
+
+	public gchar *file_format = NULL
+		destroywith g_free;
+
+	public gchar *image_file = NULL
+		destroywith g_free;
+
+	public BimaRelationType relation_type;
+
+	public GList *template_file = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_free(list->data);
+			}
+		};
+
+	public GList *properties = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data);
+					//g_free(list->data);
+			}
+		};
+
+	
+	public void
+	load_from_xml(self, xmlNodePtr xml_node )
+	{
+		xmlNodePtr xml_child_node; 
+		//gchar *tmp_str;
+		xmlChar *xml_prop;
+		
+		if (xml_node != NULL) {
+			if (self && xmlGetProp(xml_node,"name")) {
+				self->id = xmlGetProp(xml_node,"id");
+				self->name = xmlGetProp(xml_node,"name");
+				//self->file = xmlGetProp(xml_node,"file");
+				self->prefix = xmlGetProp(xml_node,"prefix");
+				self->suffix = xmlGetProp(xml_node,"suffix");
+				self->file_format = xmlGetProp(xml_node,"fileformat");
+				self->image_file = xmlGetProp(xml_node,"image_file");
+				
+				xml_prop  = xmlGetProp(xml_node,"relation_type");
+				if (xml_prop) {
+					if (!xmlStrcmp(xml_prop, (const xmlChar *) "NONE")) {
+						self->relation_type = REL_NONE;
+					}
+					else if (!xmlStrcmp(xml_prop, (const xmlChar *) "1TO1")) {
+						self->relation_type = REL_1TO1;
+					}
+					else if (!xmlStrcmp(xml_prop, (const xmlChar *) "1TOM")) {
+						self->relation_type = REL_1TOM;
+					}
+					else if (!xmlStrcmp(xml_prop, (const xmlChar *) "MTO1")) {
+						self->relation_type = REL_MTO1;
+					}
+					else if ( (!xmlStrcmp(xml_prop, (const xmlChar *) "MTOM")) || (!xmlStrcmp(xml_prop, (const xmlChar *) "NTOM")) ){
+						self->relation_type = REL_MTOM;
+					}
+					//g_printf("  rel type %s %d\n", xml_prop, self->relation_type);
+				}
+				xml_child_node = xml_node->children;
+				while ( xml_child_node != NULL ) {
+					if (!xmlStrcmp(xml_child_node->name, (const xmlChar *)"Template")) {
+						self->template_file = g_list_append(self->template_file, xmlGetProp(xml_child_node,"file"));
+						//g_print("%s\n",self->template_file->data);
+					} else if (!xmlStrcmp(xml_child_node->name, (const xmlChar *)"Properties")) {
+						self->properties = load_properties(xml_child_node);
+						//g_print("num prop %d\n", g_list_length(self->properties));
+					}
+					
+					xml_child_node = xml_child_node->next ;
+				}
+				
+//				g_print("id : %s type %d %s \n", self->id , self->relation_type ,self->name) ;
+			}
+			//xml_child_node = xml_child_node->next;
+		}
+	}
+	
+	public BimaTemplateForm*
+	new (void)
+	{
+		return GET_NEW;
+	}
+
+}

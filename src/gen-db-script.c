@@ -1,0 +1,315 @@
+/***************************************************************************
+ *            gen-db-script.c
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+#include "bima-utils.h"
+#include "bima-entity.h"
+#include "bima-connection.h"
+#include "bima-attribute.h"
+#include "bima-relation.h"
+#include "bima-foreign-key.h"
+#include "gen-db-script.h"
+
+
+char *
+bima_gen_attribute_postgres_script (FILE *file,
+		GList *l_attr, int is_only_key, gchar *add_name)
+{
+	GList *l_tmp;
+	BimaAttribute *attr;
+	int i = 0 ;
+	char *str_ret = "";
+	
+	l_tmp = g_list_first(l_attr);
+	while (l_tmp != NULL ) {
+		attr = (BimaAttribute *)(l_tmp->data);
+		if (is_only_key == 1) {
+			if ( attr->is_key == 1 ) {
+				if ( strstr(attr->field_type,"Date") || strstr(attr->field_type,"Integer") ) {
+					if (i == 0) {
+						fprintf(file, "\n\t%s%s \t %s ", add_name,attr->name, attr->field_type);
+						str_ret = g_strdup_printf("%s%s",add_name,attr->name);
+						i = 1;
+					}
+					else {
+						fprintf(file, ",\n\t%s%s \t %s ", add_name , attr->name, attr->field_type);
+						//str_ret = g_strconcat(str_ret , ",",l_tmp2->data->name,NULL);
+						str_ret = g_strconcat(str_ret ," , ",g_strdup_printf("%s%s",add_name,attr->name),NULL);
+					}
+				}
+				else {
+					if ( attr->length > 0 )
+						if (i == 0) {
+							fprintf(file, "\n\t%s%s \t %s(%d) ", add_name ,attr->name, attr->field_type, attr->length);
+							str_ret = g_strdup_printf("%s%s",add_name,attr->name);
+							//g_strconcat(l_tmp2->data->name,NULL);
+							i = 1;
+						}
+						else {
+							fprintf(file, ",\n\t%s%s \t %s(%d) ", add_name ,attr->name, attr->field_type, attr->length);
+							str_ret = g_strconcat(str_ret ," , ",g_strdup_printf("%s%s",add_name,attr->name),NULL);
+						}
+					else
+						if (i == 0) {
+							fprintf(file, "\n\t%s%s \t %s", add_name ,attr->name, attr->field_type);
+							str_ret = g_strdup_printf("%s%s",add_name,attr->name); 
+							//g_strconcat(l_tmp2->data->name,NULL);
+							i = 1;
+						}
+						else {
+							fprintf(file, ",\n\t%s%s \t %s ", add_name ,attr->name, attr->field_type);
+							//str_ret = g_strconcat(str_ret ,",",l_tmp2->data->name,NULL);
+							str_ret = g_strconcat(str_ret ," , ",g_strdup_printf("%s%s",add_name,attr->name),NULL);
+						}
+						
+				}
+			}
+		}
+		else {
+			if ( strstr(attr->field_type,"Date") || strstr(attr->field_type,"Integer") ) {
+				if (i == 0) {
+					fprintf(file, "\n\t%s%s \t %s ", add_name , attr->name, attr->field_type);
+					i = 1;
+				}
+				else {
+					fprintf(file, ",\n\t%s%s \t %s ", add_name , attr->name, attr->field_type);
+				}
+			}
+			else {
+				if ( attr->length > 0 )
+					if (i == 0) {
+						fprintf(file, "\n\t%s%s \t %s(%d) ", add_name ,attr->name, attr->field_type, attr->length);
+						i = 1;
+					}
+					else {
+						fprintf(file, ",\n\t%s%s \t %s(%d) ", add_name ,attr->name, attr->field_type, attr->length);
+					}
+				else
+					if (i == 0) {
+						fprintf(file, "\n\t%s%s \t %s", add_name ,attr->name, attr->field_type);
+						i = 1;
+					}
+					else {
+						fprintf(file, ",\n\t%s%s \t %s ", add_name ,attr->name, attr->field_type);
+					}
+			}
+
+/*			if ( strstr(l_tmp2->data->name,"Date") || strstr(l_tmp2->data->name,"Integer") ) {
+				fprintf(file, "\t%s%s \t %s, \n", add_name ,l_tmp2->data->name, l_tmp2->data->field_type);
+			}
+			else {
+				if ( l_tmp2->data->length > 0 )
+					fprintf(file, "\t%s%s \t %s(%d), \n", add_name, l_tmp2->data->name, l_tmp2->data->field_type, l_tmp2->data->length);
+				else
+					fprintf(file, "\t%s%s \t %s, \n", add_name, l_tmp2->data->name, l_tmp2->data->field_type);
+			}*/
+		}
+		l_tmp = l_tmp->next;
+	}
+	return str_ret;
+}
+
+gint
+gen_db_script(char *filename,
+		BimaAppData *app_dt)
+{
+	FILE *db_file;
+	GList *l_tmp, *l_tmp2, *l_tmp3;
+	BimaEntity *d_entity, *d_entity2;
+	BimaRelation *d_relation;
+	BimaAttribute *d_attr;
+	BimaForeignKey *d_fk;
+	
+	int i ;
+	char *str_tmp = "";
+	char *str_tmp2 = "";
+
+	db_file = fopen(filename, "w");
+	if (!db_file) {
+		//g_warning("error ");
+		return 1;
+	}
+
+	fprintf(db_file, "-- This File is generated by Bima \n\n");
+	//g_printf("gen db script\n");
+	for (l_tmp = g_list_first(app_dt->entities);l_tmp != NULL; l_tmp = l_tmp->next){
+		d_entity = (BimaEntity *) (l_tmp->data);
+		fprintf(db_file, "DROP TABLE %s CASCADE;\n", d_entity->name);
+		fprintf(db_file, "CREATE TABLE %s ( ", d_entity->name);
+
+		//write all attribute
+		bima_gen_attribute_postgres_script(db_file,d_entity->attributes,0,"");
+
+		//g_printf("fk key of %s\n", d_entity->name);
+
+		//write all foreign key
+		if ( d_entity->foreign_key != NULL ) {
+			l_tmp2 = d_entity->foreign_key;
+			while ( l_tmp2 != NULL ) {
+				d_fk = (BimaForeignKey *)(l_tmp2->data);
+				d_entity2 = (BimaEntity *) bima_get_object_by_prop(app_dt->entities, "id",d_fk->pk_obj_id);
+				
+				if (d_entity2) {
+					fprintf(db_file, ",\n\n\t-- All foreign key from Table : %s ", d_entity2->name);
+					bima_gen_attribute_postgres_script(db_file,d_entity2->attributes,1,g_strdup_printf("%s_", d_fk->name));
+				}
+				l_tmp2 = l_tmp2->next;
+			}
+		}
+		//write all foreign attribute
+		if ( d_entity->foreign_attr != NULL ) {
+			l_tmp2 = d_entity->foreign_attr;
+			while ( l_tmp2 != NULL ) {
+				d_fk = (BimaForeignKey *)(l_tmp2->data);
+				d_relation = (BimaRelation *)bima_get_object_by_prop(app_dt->relations, "id",d_fk->pk_obj_id);
+				if (d_relation) {
+					fprintf(db_file, ",\n\n\t-- All foreign attribute from Relation : %s ", d_relation->name);
+					bima_gen_attribute_postgres_script(db_file,d_relation->attributes,0,g_strdup_printf("%s_", d_fk->name));
+					//bima_gen_attribute_postgres_script(db_file,d_relation->attributes,0,g_strdup_printf("%s_", d_relation->abbreviation));
+				}
+				l_tmp2 = l_tmp2->next;
+			}
+		}
+
+		//create the Primary Key Constraint
+		if (d_entity->num_of_key > 0) {
+			i = 0;
+			fprintf(db_file, ",\n\tCONSTRAINT %s_pk PRIMARY KEY ( ", d_entity->name);
+			l_tmp2 = d_entity->attributes;
+			while (l_tmp2 != NULL ) {
+				d_attr = (BimaAttribute *)(l_tmp2->data);
+				if ( d_attr->is_key == 1 ) {
+					if (i == 0 ) {
+						fprintf(db_file, "%s ", d_attr->name);
+						i++;
+					}
+					else {
+						fprintf(db_file, ",%s ", d_attr->name);
+					}
+				}
+				l_tmp2 = l_tmp2->next;
+			}
+			fprintf(db_file, ") \n");
+		}
+
+		//chr = fgetc(db_file);
+
+		fprintf(db_file, "\n); \n\n");
+	}
+
+	str_tmp  = "";
+
+	for (l_tmp = g_list_first(app_dt->relations);l_tmp != NULL; l_tmp = l_tmp->next){
+		d_relation = (BimaRelation *)(l_tmp->data);
+		if ( d_relation->foreign_key != NULL ) {
+			//all M-N relation or more than 2 tables is generated as single tables
+			fprintf(db_file, "DROP TABLE %s CASCADE;\n", d_relation->name);
+			fprintf(db_file, "CREATE TABLE %s ( ", d_relation->name);
+			bima_gen_attribute_postgres_script(db_file,d_relation->attributes,FALSE,"");
+
+			i = 0;
+			l_tmp2 = d_relation->foreign_key;
+			while ( l_tmp2 != NULL ) {
+				d_fk = (BimaForeignKey *)(l_tmp2->data);
+				d_entity = (BimaEntity *) bima_get_object_by_prop(app_dt->entities, "id",d_fk->pk_obj_id);
+
+				if (d_entity) {
+					fprintf(db_file, ",\n\t-- All foreign key from Table : %s ", d_entity->name);
+					if (i ==0 ) {
+						//str_tmp = bima_gen_attribute_postgres_script(db_file,d_entity->attributes,TRUE, g_strdup_printf("%s_",d_entity->name));
+						str_tmp = bima_gen_attribute_postgres_script(db_file,d_entity->attributes,TRUE, g_strdup_printf("%s_",d_fk->name));
+						i = 1;
+					}
+					else 
+						str_tmp = g_strconcat( str_tmp ,",", bima_gen_attribute_postgres_script(db_file,d_entity->attributes,1, g_strdup_printf("%s_",d_entity->name)),NULL);
+				}				
+				l_tmp2 = l_tmp2->next;
+			}
+			fprintf(db_file, ",\n\tCONSTRAINT %s_pk PRIMARY KEY ( %s ) ", d_relation->name,str_tmp);
+			free(str_tmp);
+			fprintf(db_file, "\n); \n\n");
+		}
+	}
+	
+	//dump all entity that have fk to create alter script
+	str_tmp = NULL;
+	str_tmp2 = NULL;
+	
+	for ( i = 0 ; i < 2; i++) { 
+		if (i == 0 ) 
+			l_tmp = g_list_first(app_dt->entities);
+		else 
+			l_tmp = g_list_first(app_dt->relations);
+		
+		while (l_tmp != NULL) {
+			d_entity = (BimaEntity *)(l_tmp->data);
+			if ( d_entity->foreign_key != NULL ) {
+				for (l_tmp2 = g_list_first(d_entity->foreign_key);l_tmp2 != NULL; l_tmp2 = l_tmp2->next){
+					d_fk = (BimaForeignKey *)(l_tmp2->data);
+					d_entity2 = (BimaEntity *) bima_get_object_by_prop(app_dt->entities, "id",d_fk->pk_obj_id);
+					if (d_entity2) {
+						l_tmp3 = d_entity2->attributes;
+						//i = 0 ;
+						while (l_tmp3!=NULL) {
+							d_attr = (BimaAttribute *)(l_tmp3->data);
+							if (d_attr->is_key == 1 ) {
+								if (str_tmp==NULL) {
+									str_tmp = g_strdup_printf("%s_%s", d_fk->name,d_attr->name) ;
+									str_tmp2 = g_strdup_printf("%s", d_attr->name) ;
+									//i = 1;
+								}
+								else { 
+									str_tmp = g_strconcat(str_tmp , ",",g_strdup_printf("%s_%s", d_fk->name,d_attr->name),NULL);
+									str_tmp2 = g_strconcat(str_tmp2 , ",",d_attr->name,NULL);
+								}
+							}
+						
+							l_tmp3 = l_tmp3->next;
+						}
+						if (i==0)
+							if (d_fk->relation) 
+								fprintf(db_file, "\nALTER TABLE %s ADD CONSTRAINT %s_%s_fk FOREIGN KEY (%s) REFERENCES %s (%s) ; ", 
+									d_entity->name, d_fk->relation->abbreviation,d_fk->name,str_tmp,  d_entity2->name, str_tmp2);
+							else
+								fprintf(db_file, "\nALTER TABLE %s ADD CONSTRAINT %s_%s_fk FOREIGN KEY (%s) REFERENCES %s (%s) ; ", 
+									d_entity->name, d_entity2->abbreviation,d_fk->name,str_tmp,  d_entity2->name, str_tmp2);
+						else 
+							fprintf(db_file, "\nALTER TABLE %s ADD CONSTRAINT %s_%s_fk FOREIGN KEY (%s) REFERENCES %s (%s) ; ", 
+								d_entity->name, d_entity->abbreviation,d_fk->name,str_tmp,  d_entity2->name, str_tmp2);
+						
+					//bima_gen_attribute_postgres_script(db_file,d_entity2->data->attributes,1,g_strdup_printf("%s_", d_fk->name));
+					}
+					g_free(str_tmp);
+					str_tmp = NULL;
+					g_free(str_tmp2);
+					str_tmp2 = NULL;
+				}
+			}
+			l_tmp = l_tmp->next;
+		}
+	}
+
+	fclose(db_file);
+	return 0;
+}

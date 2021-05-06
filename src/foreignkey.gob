@@ -1,0 +1,107 @@
+/***************************************************************************
+ *            foreignkey.gob
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+
+requires 2.0.0
+
+//%headertop{
+//#include "bima-relation.h"
+//%}
+// to avoid circular header we change previous code with these 
+
+%headertop{
+#include <stdio.h>
+%}
+
+
+%h{
+
+typedef enum {
+	REL_NONE,
+	REL_1TO1,
+	REL_1TOM,
+	REL_MTO1,
+	REL_MTOM
+} BimaRelationType;
+
+#ifndef __TYPEDEF_BIMA_RELATION__
+#define __TYPEDEF_BIMA_RELATION__
+typedef struct _BimaRelation BimaRelation;
+#endif
+%}
+
+class Bima:Foreign:Key from G:Object {
+	//duplicate of entity id (in foreing key)
+	//duplicate of relation id (in foreing attribute) if relation contain attribute
+	public gchar *pk_obj_id = NULL  
+		destroywith g_free;
+		
+	public gchar *name = NULL //only link to abbreviation of entity or name  of relation
+		destroy {name = NULL;};
+
+	public BimaRelation *relation = NULL // link to relation
+		destroy {relation = NULL;};
+
+//	public gchar *showed_field = NULL
+//		destroywith g_free;
+
+	public BimaRelationType relation_type = REL_NONE;
+
+	public void
+	write_to_xml( self , FILE *ofile )
+	{
+		//GList *list;
+
+		switch (self->relation_type) {
+			case REL_NONE:
+				fprintf(ofile, "\t\t\t<ForeignKey primary_key_id=\"%s\" relation_type=\"REL_NONE\">\n", \ 
+					self->pk_obj_id );
+				break;
+			case REL_1TO1:
+				fprintf(ofile, "\t\t\t<ForeignKey primary_key_id=\"%s\" relation_type=\"REL_1TO1\">\n", \ 
+					self->pk_obj_id );
+				break;
+			case REL_1TOM:
+				fprintf(ofile, "\t\t\t<ForeignKey primary_key_id=\"%s\" relation_type=\"REL_1TOM\">\n", \ 
+					self->pk_obj_id );
+				break;
+			case REL_MTO1:
+				fprintf(ofile, "\t\t\t<ForeignKey primary_key_id=\"%s\" relation_type=\"REL_MTO1\">\n", \ 
+					self->pk_obj_id );
+				break;
+			case REL_MTOM:
+				fprintf(ofile, "\t\t\t<ForeignKey primary_key_id=\"%s\" relation_type=\"REL_MTOM\">\n", \ 
+					self->pk_obj_id );
+				break;
+		}
+
+		//if (self->description)
+		//	fprintf(ofile, "\t\t<Description>%s</Description>", self->description);
+
+		fprintf(ofile, "\t\t\t</ForeignKey>\n");
+	}
+				
+	public BimaForeignKey*
+	new (void)
+	{
+		return GET_NEW;
+	}
+
+}

@@ -1,0 +1,194 @@
+/***************************************************************************
+ *            form-property.gob
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+
+requires 2.0.0
+
+%headertop{
+//#include "property.h"
+#include <stdarg.h>
+#include <gobject/gvaluecollector.h>
+%}
+
+class Bima:Property from G:Object { 
+
+	public gchar *name = { NULL }
+		destroywith g_free;
+	property STRING name
+		(nick = "name",
+		 blurb = "name of entity",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *type = { NULL }
+		destroywith g_free;
+
+	public gchar *title = { NULL }
+		destroywith g_free;
+		
+	public GValue value //= {{ 0, }}
+		destroy{
+			g_value_unset(&VAR);		
+		};
+
+	public void 
+	vinit(self, gchar *type) {
+		self->type = g_strdup(type);
+		if (!g_ascii_strcasecmp(type ,"string")) {
+			g_value_init(&(self->value), G_TYPE_STRING);
+		} else if (!g_ascii_strcasecmp(type ,"int")) {
+			g_value_init(&(self->value), G_TYPE_INT);
+		}
+		return;	
+	}
+
+	public void 
+	vset(self, GTypeCValue *value) {
+		if (!g_ascii_strcasecmp(self->type ,"string")) {
+			g_value_set_string(&(self->value), g_strdup(value));
+		} else if (!g_ascii_strcasecmp(self->type ,"int")) {
+			g_value_set_int(&(self->value), value);
+		}
+	}
+/*
+	public void 
+	vget(self, GTypeCValue *value) {
+		gchar *str=NULL;
+
+		//g_value_transform(&(self->value), value );
+		//instance = g_value_peek_pointer(&(self->value));
+		if (!g_ascii_strcasecmp(self->type ,"string")) {
+			str = g_value_get_string(&(self->value));			
+			value->v_pointer = &str;
+			g_printf(" v %s\n",str);
+		} else if (!g_ascii_strcasecmp(self->type ,"int")) {
+			//g_value_set_int(&(self->value), value);
+			g_printf("%d \n",1);
+		}
+
+	}
+*/	
+	public BimaProperty*
+	copy(self) 
+	{
+		BimaProperty *prop;
+		
+		prop = GET_NEW;
+		prop->name = g_strdup(self->name);
+		prop->title = g_strdup(self->title);
+		bima_property_vinit(prop, self->type);						
+		return prop ;
+	
+	}
+	
+	public void
+	pget_valist(GList *list, gchar *first_prop, va_list var_args) 
+	{
+		const gchar *prop_name;
+		
+		prop_name = first_prop;
+		while (prop_name) {
+			GValue value = {0,};
+			BimaProperty *property;
+			gchar *error;
+			property = (BimaProperty *) bima_get_object_by_prop(list , "name", prop_name);
+			if (property == NULL)
+				break;
+
+/*
+			if (!g_ascii_strcasecmp(property->type ,"string")) {
+				g_value_init(&value, G_TYPE_STRING);
+			} else if (!g_ascii_strcasecmp(property->type ,"int")) {
+				g_value_init(&value, G_TYPE_INT);
+			}
+*/
+			G_VALUE_LCOPY(&(property->value), var_args, 0, &error);			 
+			prop_name = va_arg(var_args, gchar *);
+		}
+	}	
+	
+	public void
+	v_get(GList *list, const gchar *first_prop, ...) 
+	{
+		va_list var_args;
+		va_start(var_args,first_prop);
+		bima_property_pget_valist(list,first_prop, var_args);
+		va_end(var_args);
+	}
+
+	public void
+	pset_valist(GList *list, gchar *first_prop, va_list var_args) 
+	{
+		const gchar *prop_name;
+		
+		prop_name = first_prop;
+		while (prop_name) {
+			GValue value = {0,};
+			BimaProperty *property;
+			gchar *error;
+			property = (BimaProperty *) bima_get_object_by_prop(list , "name", prop_name);
+			if (property == NULL)
+				break;
+/*
+			if (!g_ascii_strcasecmp(property->type ,"string")) {
+				g_value_init(&value, G_TYPE_STRING);
+			} else if (!g_ascii_strcasecmp(property->type ,"int")) {
+				g_value_init(&value, G_TYPE_INT);
+			}
+*/
+			G_VALUE_COLLECT (&(property->value), var_args, 0, &error);
+			prop_name = va_arg(var_args, gchar *);
+		}
+	}	
+	
+	public void
+	v_set(GList *list, const gchar *first_prop, ...) 
+	{
+		va_list var_args;
+		va_start(var_args,first_prop);
+		bima_property_pset_valist(list,first_prop, var_args);
+		va_end(var_args);
+	}
+	
+	public void
+	load_widget(self) 
+	{
+		if (!g_ascii_strcasecmp(self->type ,"string")) {
+			bima_property_add_entry( self->name, self->title, NULL,g_value_get_string(&(self->value)));
+		} else if (!g_ascii_strcasecmp(self->type ,"int")) {
+			bima_property_add_number( self->name, self->title, NULL,g_value_get_int(&(self->value)),0,255,1,10);
+		}
+	}
+	
+	public BimaProperty*
+	new (gchar *name, gchar *title , gchar *type)
+	{
+		BimaProperty *prop;
+		
+		prop = GET_NEW;
+		prop->name = g_strdup(name);
+		prop->title = g_strdup(title);
+		bima_property_vinit(prop, type);						
+		return prop ;
+	}
+
+}

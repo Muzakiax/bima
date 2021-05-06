@@ -1,0 +1,823 @@
+
+/***************************************************************************
+ *            appdata.gob
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+ 
+requires 2.0.0
+
+%headertop{
+#include <libxml/parser.h>
+#include <libxml/tree.h>
+
+#include "bima-entity.h"
+#include "bima-relation.h"
+#include "bima-utils.h"
+#include "bima-view.h"
+#include "bima-module.h"
+#include "bima-form.h"
+#include "bima-template.h"
+#include "bima-query.h"
+
+#include "dia-er-parse.h"
+#include "bma-file-parse.h"
+#include "file-utils.h"
+
+//#include "bima-report.h"
+
+%}
+
+%h{
+typedef enum {
+	DB_POSTGRESQL,
+	DB_MYSQL,
+	DB_ORACLE
+} BimaDbType;
+
+typedef enum {
+	DIAGRAM_UML,
+	DIAGRAM_ER
+} BimaDiagramType;
+%}
+
+class Bima:App:Data from G:Object { 
+	
+	public BimaDiagramType diagram_type;
+	public gchar *source_file = NULL
+		destroywith g_free; 
+	public gchar *output_dir = NULL
+		destroywith g_free; 
+/*
+	property STRING output_dir
+		(nick = "output_dir",
+		 blurb = "output_dir of project",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+*/
+	public gchar *project_name = NULL
+		destroywith g_free;
+	property STRING project_name
+		(nick = "prj name",
+		 blurb = "name of project",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *version = NULL
+		destroywith g_free;
+	property STRING version
+		(nick = "version",
+		 blurb = "version of project",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *author = NULL
+		destroywith g_free;
+	property STRING author
+		(nick = "author",
+		 blurb = "author of project",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public BimaDbType db_type = DB_POSTGRESQL;
+	property INT db_type
+		(nick = "db_type",
+		 blurb = "db_type of project",
+		 default_value = 0,
+		 export,
+		 link
+		);
+
+	public gchar *db_name = NULL
+		destroywith g_free;
+	property STRING db_name
+		(nick = "db_name",
+		 blurb = "db_name of project",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *db_user_name = NULL
+		destroywith g_free;
+	property STRING db_user_name
+		(nick = "db_user_name",
+		 blurb = "db_user_name of project",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *db_user_pass = NULL
+		destroywith g_free;
+	property STRING db_user_pass
+		(nick = "db_user_pass",
+		 blurb = "db_user_password of project",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+	public gint num_modules = 1;
+	public GList *modules = NULL
+		destroy {
+			GList *list;
+			//g_print("destroy modules\n");
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+			g_list_free(VAR);
+			VAR = NULL;
+		};
+
+						
+	public GList *entities = NULL
+		destroy {
+			GList *list;
+			//g_print("destroy entites\n");
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+			g_list_free(VAR);
+			VAR = NULL;
+		};
+
+	public GList *relations = NULL
+		destroy {
+			GList *list;
+			//g_print("destroy relations\n");			
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+			g_list_free(VAR);
+			VAR = NULL;
+		};
+	public gint num_views = 1;
+	public GList *views = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+			g_list_free(VAR);
+			VAR = NULL;			
+		};
+		
+	//public gint num_reports = 1;
+	public GList *reports = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+			g_list_free(VAR);
+			VAR = NULL;			
+		};
+
+	public gint num_forms = 1;
+	public GList *forms = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+			g_list_free(VAR);
+			VAR = NULL;			
+		};
+
+	public BimaTemplate *template = NULL
+		destroy { 
+			if (template != NULL)
+				g_object_unref((GObject *) template);
+		};
+
+	public BimaQuery *query = { NULL }
+		destroy { 
+			if (query != NULL) 
+				g_object_unref((GObject *) query);
+		};
+
+	public void 
+	parse_file_diagram(self,  const gchar *file_name) 
+	{
+		BimaModule *module = NULL;
+		xmlDocPtr xml_doc;
+		xmlNodePtr xml_node;
+
+		xmlKeepBlanksDefault(0);
+
+		xml_doc = xmlParseFile(file_name);
+		if (xml_doc == NULL) 
+			return ;
+
+		xml_node = xmlDocGetRootElement(xml_doc);
+		if (xml_node == NULL) 
+			return ;
+	
+		if (self != NULL ) {
+			g_object_unref((GObject *) self );
+			//g_free(bgui->app_data);
+			self = NULL;
+		}
+		self  = bima_app_data_new();
+
+		if (!xmlStrcmp(xml_node->name, (const xmlChar *)"diagram")) {
+			if (self->project_name)
+				g_free(self->project_name);
+		
+			self->project_name = get_file_name_without_ext(file_name); 
+
+			if (self->output_dir)
+				g_free(self->output_dir);
+
+			//set default module name as name of project
+			module = bima_module_new();
+			if (module != NULL ) {
+				module->id = g_strdup(self->project_name);		
+				module->name = g_strdup(self->project_name);
+				module->parent_id = NULL;
+				bima_app_data_add_module(self, module);
+			}
+			xmlFreeDoc(xml_doc);
+			
+			dia_er_parse (file_name,self);
+			dia_er_parse_foreign_key(self); 
+		} else if (!xmlStrcmp(xml_node->name, (const xmlChar *)"Bima")) {
+			xmlFreeDoc(xml_doc);
+			bma_file_parse (file_name,self);
+		}	
+		self->source_file = g_strdup(file_name);
+		self->output_dir = g_strconcat(get_dir_name(file_name),"/","output",NULL);
+	}
+	
+	public void
+	add_module( self, BimaModule *module)
+	{
+		//g_printf(" add mdl %s prnt %s\n", module->id , module->parent_id);
+		self->modules = g_list_append(self->modules, (gpointer) module);
+	}
+
+	public void
+	delete_module( self, gchar *id)
+	{
+		GList *list;
+		list = bima_get_l_object_by_prop(self->modules , "id", id);
+		if (list == NULL) 
+			return;
+		g_list_remove_link(self->modules , list);
+		g_object_unref((GObject *) list->data); 
+		g_list_free(list);
+	}
+	
+	public void
+	create_and_add_module(self, gchar *id, gchar *parent_id) {
+		BimaModule *module = NULL;
+		
+		module = (BimaModule *) bima_get_object_by_prop(self->modules , "id", id);
+		
+		if (module) {
+			return ;
+		}
+		
+		module = bima_module_new();
+		if (!module) {
+			return;
+		}
+		
+		module->id = g_strdup(id);
+		module->name = g_strdup(id);
+		module->parent_id = g_strdup(parent_id);
+		
+		bima_app_data_add_module(self,module);
+	}
+	
+	public void
+	add_entity( self, BimaEntity *entity)
+	{
+		self->entities = g_list_append(self->entities, (gpointer) entity);
+	}
+
+	public BimaEntity* 
+	find_entity(self,gchar *id) 
+	{
+		BimaEntity* obj;
+		obj = (BimaEntity *)bima_get_object_by_prop(self->entities, "id",id);	
+		return obj;
+	}
+	
+	public void
+	add_relation( self, BimaRelation *relation)
+	{
+		self->relations = g_list_append(self->relations, (gpointer) relation);
+	}
+
+	public BimaRelation* 
+	find_relation(self,gchar *id) 
+	{
+		BimaRelation* obj;
+		obj = (BimaRelation *)bima_get_object_by_prop(self->relations, "id",id);	
+		return obj;
+	}
+	
+	public void
+	add_view( self, BimaView *view)
+	{
+		self->views = g_list_append(self->views, (gpointer) view);
+		self->num_views++;
+	}
+
+	public BimaView *
+	create_new_view( self, gchar *entity_id)
+	{
+		BimaEntity *entity;
+		BimaView *view = bima_view_new();
+		
+		entity = bima_get_object_by_prop(self->entities , "id", entity_id);
+		if (entity == NULL) return NULL;
+		
+		view->id = g_strdup_printf("vw%d",self->num_views);
+		view->primary_obj_id = g_strdup(entity_id);	
+		view->name = g_strdup_printf("vw_%s_noname%d", g_ascii_strdown(entity->abbreviation,-1),self->num_views);
+		view->title = g_strdup_printf("VIEW %s NONAME%d", g_ascii_strup(entity->abbreviation,-1), self->num_views);
+				
+		view->sql_text = g_strdup_printf("select * from %s ", entity->name);
+		
+		bima_app_data_add_view(self, view);
+		return view;
+	}
+	
+	public void
+	delete_view( self, gchar *id)
+	{
+		GList *llink;
+		llink = bima_get_l_object_by_prop(self->views , "id", id);
+		if (llink == NULL) 
+			return;
+		g_list_remove_link(self->views , llink);
+		g_object_unref((GObject *) llink->data); 
+		g_list_free(llink);
+	}
+	
+	public void
+	add_report( self, BimaForm *report)
+	{
+		self->reports = g_list_append(self->reports, (gpointer) report);
+		self->num_forms++;
+	}
+
+	public BimaForm *
+	create_new_report( self, gchar *entity_id, gchar *template_id)
+	{
+		BimaEntity *entity;
+		BimaTemplateForm *tform;
+		BimaForm *form = bima_form_new();
+		
+		tform = bima_get_object_by_prop(self->template->treports , "id", template_id);
+		if (tform == NULL) return NULL;
+		
+		if (entity_id) {
+			entity = bima_get_object_by_prop(self->entities , "id", entity_id);
+			if (entity == NULL) return NULL;
+		} else {
+			entity = (BimaEntity *) (self->entities->data);
+		}
+		
+		form->id = g_strdup_printf("%s%d",tform->prefix, self->num_forms);
+		form->template_id = g_strdup(template_id);	
+		if (entity) {
+			form->primary_obj_id = g_strdup(entity->id);		
+			form->name = g_strdup_printf("%s_%s_noname%d_%s", tform->prefix, g_ascii_strdown(entity->abbreviation,-1),self->num_forms, tform->suffix);
+			form->title = g_strdup_printf("REPORT %s NONAME%d", g_ascii_strup(entity->abbreviation,-1), self->num_forms);				
+			form->sql_text = g_strdup_printf("select * from %s ", entity->name);		
+		} else {
+			form->primary_obj_id = g_strdup(template_id);		
+			form->name = g_strdup_printf("%s_noname%d_%s", tform->prefix, self->num_forms, tform->suffix);
+			form->title = g_strdup_printf("REPORT NONAME%d", self->num_forms);				
+			form->sql_text = g_strdup_printf("select * from NONAME ");				
+		}
+		
+		bima_app_data_add_report(self, form);
+
+		entity = NULL;	
+		tform = NULL;	
+		
+		return form;
+	}
+
+	public void
+	delete_report( self, gchar *id)
+	{
+		GList *list;
+		list = bima_get_l_object_by_prop(self->reports , "id", id);
+		if (list == NULL) 
+			return;
+		g_list_remove_link(self->reports , list);
+		g_object_unref((GObject *) list->data); 
+		g_list_free(list);
+	}
+
+	public void
+	add_form( self, BimaForm *form)
+	{
+		self->forms = g_list_append(self->forms, (gpointer) form);
+		self->num_forms++;
+	}
+
+	public BimaForm *
+	create_new_form( self, gchar *entity_id, gchar *template_id)
+	{
+		BimaEntity *entity;
+		BimaTemplateForm *tform;
+		BimaForm *form = bima_form_new();
+		
+		tform = bima_get_object_by_prop(self->template->tforms , "id", template_id);
+		if (tform == NULL) return NULL;
+		
+		if (entity_id) {
+			entity = bima_get_object_by_prop(self->entities , "id", entity_id);
+			if (entity == NULL) return NULL;
+		} else {
+			entity = (BimaEntity *) (self->entities->data);
+		}
+		
+		form->id = g_strdup_printf("%s%d",tform->prefix, self->num_forms);
+		form->template_id = g_strdup(template_id);	
+		if (entity) {
+			form->primary_obj_id = g_strdup(entity->id);	
+			form->name = g_strdup_printf("%s_%s_noname%d_%s",tform->prefix, g_ascii_strdown(entity->abbreviation,-1),self->num_forms,tform->suffix);
+			form->title = g_strdup_printf("FORM %s NONAME%d", g_ascii_strup(entity->abbreviation,-1), self->num_forms);				
+			form->sql_text = g_strdup_printf("select * from %s ", entity->name);		
+		} else {
+			form->primary_obj_id = g_strdup(template_id);	
+
+			form->name = g_strdup_printf("%s_noname%d_%s", tform->prefix, self->num_forms, tform->suffix);
+			form->title = g_strdup_printf("FORM NONAME%d", self->num_forms);				
+			form->sql_text = g_strdup_printf("select * from NONAME ");				
+		}
+
+		bima_app_data_add_form(self, form);
+
+		entity = NULL;	
+		tform = NULL;	
+		
+		return form;
+	}
+
+	public void
+	delete_form( self, gchar *id)
+	{
+		GList *list;
+		list = bima_get_l_object_by_prop(self->forms , "id", id);
+		if (list == NULL) 
+			return;
+		g_list_remove_link(self->forms , list);
+		g_object_unref((GObject *) list->data); 
+		g_list_free(list);
+	}
+			
+	public void
+	populate_views(self) 
+	{
+		GList *l_tmp ,*l_tmp2,*l_tmp3,*l_tmp4;
+		BimaEntity *entity ,*entity_pk;
+		BimaForeignKey *fk,*fk2;
+		BimaView *view = NULL;
+		BimaAttribute *attr = NULL;
+		BimaRelation *relation = NULL;
+		gint n ;
+
+		if (self->views)
+			return;
+			
+		//parse one to one and one to many realtion		
+		for (l_tmp=g_list_first(self->entities);l_tmp != NULL; l_tmp = l_tmp->next) {
+			entity = (BimaEntity *) l_tmp->data;
+			//g_printf("pop_v %s\n", entity->name);
+			for (l_tmp2=g_list_first(entity->foreign_key);l_tmp2 != NULL; l_tmp2 = l_tmp2->next) {
+				fk = (BimaForeignKey *)l_tmp2->data;
+				entity_pk = bima_get_object_by_prop(self->entities , "id", fk->pk_obj_id);
+
+				view = bima_view_new(); 
+				g_return_if_fail(view!=NULL);
+				view->primary_obj_id = g_strdup(entity->id);	
+				if (fk->relation != NULL) {
+					view->name = g_strdup_printf("vw_%s_%s", g_ascii_strdown(entity->abbreviation,-1), fk->relation->abbreviation,-1);
+					view->title = g_strdup_printf("VIEW %s %s", g_ascii_strup(entity->abbreviation,-1), g_ascii_strup(fk->relation->abbreviation,-1));
+				}
+				else {
+					view->name = g_strdup_printf("vw_%s_%s", g_ascii_strdown(entity->abbreviation,-1), g_ascii_strdown(entity_pk->abbreviation,-1));
+					view->title = g_strdup_printf("VIEW %s %s", g_ascii_strup(entity->abbreviation,-1), g_ascii_strup(entity_pk->abbreviation,-1));
+				}
+				
+				view->sql_text = g_strdup_printf("select * from %s a inner join %s b on ", entity->name, entity_pk->name);
+				n = 0 ;
+				for (l_tmp3=g_list_first(entity_pk->attributes);l_tmp3 != NULL; l_tmp3 = l_tmp3->next) {
+					attr = (BimaAttribute *) l_tmp3->data ;
+					if (attr->is_key) {
+						if (n==0) {
+							n = 1;
+							view->sql_text = g_strconcat(view->sql_text ,g_strdup_printf("a.%s_%s = b.%s",fk->name , attr->name, attr->name), NULL);
+						} else
+							view->sql_text = g_strconcat(view->sql_text ,g_strdup_printf(" AND a.%s_%s = b.%s",  fk->name , attr->name ,attr->name), NULL);
+					}
+				}
+				view->id = g_strdup_printf("vw%d",self->num_views);
+				//g_print("%s %s\n %s\n",view->id,view->name,view->sql_text);
+				bima_app_data_add_view(self, view);
+			}
+		}
+
+		//parse many to many realtion
+		for (l_tmp=g_list_first(self->relations);l_tmp != NULL; l_tmp = l_tmp->next) {
+			relation = (BimaRelation *) l_tmp->data;
+			for (l_tmp2=g_list_first(relation->foreign_key);l_tmp2 != NULL; l_tmp2 = l_tmp2->next) {
+				fk = (BimaForeignKey *)l_tmp2->data;
+				entity = bima_get_object_by_prop(self->entities , "id", fk->pk_obj_id);
+
+				for (l_tmp3=g_list_first(relation->foreign_key);l_tmp3 != NULL; l_tmp3 = l_tmp3->next) {
+					fk2 = (BimaForeignKey *)l_tmp3->data;
+					if (!g_ascii_strcasecmp(fk->pk_obj_id, fk2->pk_obj_id)) {
+						entity_pk = bima_get_object_by_prop(self->entities , "id", fk2->pk_obj_id);
+
+						view = bima_view_new(); 
+						g_return_if_fail(view!=NULL);
+						view->primary_obj_id = g_strdup(entity->id);	
+
+						view->name = g_strdup_printf("vw_%s_%s", g_ascii_strdown(entity->abbreviation,-1), g_ascii_strdown(entity_pk->abbreviation,-1));
+						view->title = g_strdup_printf("VIEW %s %s", g_ascii_strup(entity->abbreviation,-1), g_ascii_strup(entity_pk->abbreviation,-1));
+						view->sql_text = g_strdup_printf("select * from %s a , %s b , %s c where ", entity->name, relation->name, entity_pk->name);
+
+						n = 0 ;
+						for (l_tmp4=g_list_first(entity->attributes);l_tmp4 != NULL; l_tmp4 = l_tmp4->next) {
+							attr = (BimaAttribute *) l_tmp4->data ;
+							if (attr->is_key) {
+								if (n==0) {
+									n = 1;
+									view->sql_text = g_strconcat(view->sql_text ,g_strdup_printf("b.%s_%s = a.%s",fk->name , attr->name, attr->name), NULL);
+								} else
+									view->sql_text = g_strconcat(view->sql_text ,g_strdup_printf(" AND b.%s_%s = a.%s",  fk->name , attr->name ,attr->name), NULL);
+							}
+						}
+
+						for (l_tmp4=g_list_first(entity_pk->attributes);l_tmp4 != NULL; l_tmp4 = l_tmp4->next) {
+							attr = (BimaAttribute *) l_tmp4->data ;
+							if (attr->is_key) 
+								view->sql_text = g_strconcat(view->sql_text ,g_strdup_printf(" AND b.%s_%s = c.%s",  fk->name , attr->name ,attr->name), NULL);
+						}
+
+						view->id = g_strdup_printf("vw%d",self->num_views);
+						//g_print("%s %s\n %s\n",view->id,view->name,view->sql_text);
+						bima_app_data_add_view(self, view);
+					
+					}
+				}
+			}
+		}
+
+	}
+
+	public void
+	populate_forms(self) 
+	{
+		GList *l_tmp ,*l_tmp2,*l_tmp3,*l_tmp4, *tlist ;
+		BimaEntity *entity ,*entity_pk;
+		BimaForeignKey *fk,*fk2;
+		//BimaReport *report;
+		BimaForm *form = NULL;
+		BimaAttribute *attr = NULL;
+		BimaRelation *relation = NULL;
+		BimaTemplateForm *tform = NULL;
+		
+		gint i,n ;
+
+		if ((self->forms) || (self->reports))
+			return ;
+			
+		for(i = 1; i <=2 ; i++ ) { 
+			if (i == 1) {
+				tlist = g_list_first(self->template->tforms);
+			}
+			else {
+				tlist = g_list_first(self->template->treports);
+			}
+			for (;tlist != NULL; tlist = tlist->next) {
+				
+				tform = (BimaTemplateForm *) tlist->data;
+				//g_printf("tform name %s reltype %d\n", tform->name, tform->relation_type);
+				if ( (tform->relation_type == REL_NONE) || (tform->relation_type == REL_1TO1) ) {
+					//parse without foreign key 
+					for (l_tmp=g_list_first(self->entities);l_tmp != NULL; l_tmp = l_tmp->next) {
+						entity = (BimaEntity *) l_tmp->data;
+						//if (entity->foreign_key == NULL ) {
+							form = bima_form_new(); 
+							g_return_if_fail(form!=NULL);
+							form->primary_obj_id = g_strdup(entity->id);	
+							if (!g_ascii_strcasecmp("p_f_s", tform->file_format))  
+								form->name = g_strdup_printf("%s_%s_%s", tform->prefix, g_ascii_strdown(entity->abbreviation,-1), tform->suffix); 
+							else 
+								form->name = g_strdup_printf("%s%s%s", tform->prefix, g_ascii_strdown(entity->abbreviation,-1), tform->suffix);
+							form->title = g_strdup_printf("%s %s %s", g_ascii_strup(tform->prefix,-1), g_ascii_strup(entity->abbreviation,-1), g_ascii_strup(tform->suffix,-1));
+							form->sql_text = g_strdup_printf("select * from %s %s ", entity->name , entity->name);
+							form->template_id = g_strdup(tform->id);
+
+							//form->id = g_strdup_printf("rpt%d",self->num_forms);
+							form->id = g_strdup_printf("%s%d",tform->prefix, self->num_forms);
+							//g_print("  NOREL %s %s\n %s\n",form->id,form->name,form->sql_text);
+							if (i == 1)
+								bima_app_data_add_form(self, form);
+							else
+								bima_app_data_add_report(self, form);
+
+							if ( (form != NULL ) && (tform->properties != NULL) ) {
+								bima_form_copy_properties(form, tform->properties );
+								//g_printf("cp prop %d\n", g_list_length(form->properties));
+							}								
+
+						//}
+					}
+				} else if  ( (tform->relation_type == REL_1TOM) || (tform->relation_type == REL_MTO1)){	
+					//parse one to many realtion	
+					for (l_tmp=g_list_first(self->entities);l_tmp != NULL; l_tmp = l_tmp->next) {
+						entity = (BimaEntity *) l_tmp->data;
+						for (l_tmp2=g_list_first(entity->foreign_key);l_tmp2 != NULL; l_tmp2 = l_tmp2->next) {
+							fk = (BimaForeignKey *)l_tmp2->data;
+							//g_printf("rel type : \n");
+							//g_printf("   %d\n",fk->relation->rel_type);
+							//((fk->relation == NULL) && (tform->relation_type == REL_1TO1))
+							//if ((fk->relation) && (tform->relation_type == fk->relation->rel_type) && (tform->relation_type == REL_1TOM)) {
+							if ((tform->relation_type == fk->relation_type) && ((tform->relation_type == REL_1TOM) || (tform->relation_type == REL_MTO1))) {
+								entity_pk = bima_get_object_by_prop(self->entities , "id", fk->pk_obj_id);
+			
+								form = bima_form_new(); 
+								g_return_if_fail(form!=NULL);
+								form->primary_obj_id = g_strdup(entity_pk->id);	
+								//if (fk->relation) 
+								//	form->name = g_strdup_printf("%s_%s_%s_%s",tform->prefix, g_ascii_strdown(entity_pk->abbreviation,-1), fk->relation->abbreviation, tform->suffix);
+								//else
+									form->name = g_strdup_printf("%s_%s_%s_%s",tform->prefix, g_ascii_strdown(entity_pk->abbreviation,-1), g_ascii_strdown(entity->abbreviation,-1), tform->suffix);
+								
+								form->title = g_strdup_printf("%s %s %s %s", g_ascii_strup(tform->prefix,-1), g_ascii_strup(entity_pk->abbreviation,-1), g_ascii_strup(entity->abbreviation,-1), g_ascii_strup(tform->suffix,-1));
+								form->sql_text = g_strdup_printf("select * from %s %s inner join %s %s on ", entity_pk->name, fk->name, entity->name, entity->name);
+								n = 0 ;
+								for (l_tmp3=g_list_first(entity_pk->attributes);l_tmp3 != NULL; l_tmp3 = l_tmp3->next) {
+									attr = (BimaAttribute *) l_tmp3->data ;
+									if (attr->is_key) {
+										if (n==0) {
+											n = 1;
+											form->sql_text = g_strconcat(form->sql_text ,g_strdup_printf("%s.%s_%s = %s.%s", entity->name, fk->name , attr->name, fk->name, attr->name), NULL);
+										} else
+											form->sql_text = g_strconcat(form->sql_text ,g_strdup_printf(" AND %s.%s_%s = %s.%s", entity->name, fk->name , attr->name, fk->name ,attr->name), NULL);
+									}
+								}
+								form->template_id = g_strdup(tform->id);
+								form->id = g_strdup_printf("%s%d",tform->prefix, self->num_forms);
+								//g_print("  1TOM %s %s\n %s\n",form->id,form->name,form->sql_text);
+								if (i == 1)
+									bima_app_data_add_form(self, form);
+								else
+									bima_app_data_add_report(self, form);
+
+								if ( (form != NULL ) && (tform->properties != NULL) ) {
+									bima_form_copy_properties(form, tform->properties );
+									//g_printf("cp prop %d\n", g_list_length(form->properties));
+								}								
+
+							}
+						}
+					}
+				} else if (tform->relation_type == REL_MTOM) {
+					//parse many to many realtion
+					for (l_tmp=g_list_first(self->relations);l_tmp != NULL; l_tmp = l_tmp->next) {
+						relation = (BimaRelation *) l_tmp->data;
+						for (l_tmp2=g_list_first(relation->foreign_key);l_tmp2 != NULL; l_tmp2 = l_tmp2->next) {
+							fk = (BimaForeignKey *)l_tmp2->data;
+							entity = bima_get_object_by_prop(self->entities , "id", fk->pk_obj_id);
+			
+							for (l_tmp3=g_list_first(relation->foreign_key);l_tmp3 != NULL; l_tmp3 = l_tmp3->next) {
+								fk2 = (BimaForeignKey *)l_tmp3->data;
+								if (!g_ascii_strcasecmp(fk->pk_obj_id, fk2->pk_obj_id)) {
+									entity_pk = bima_get_object_by_prop(self->entities , "id", fk2->pk_obj_id);
+			
+									form = bima_form_new(); 
+									g_return_if_fail(form!=NULL);
+									form->primary_obj_id = g_strdup(entity->id);	
+			
+									form->name = g_strdup_printf("%s_%s_%s_%s", tform->prefix, g_ascii_strdown(entity->abbreviation,-1), g_ascii_strdown(entity_pk->abbreviation,-1), tform->suffix);
+									form->title = g_strdup_printf("%s %s %s", g_ascii_strup(tform->prefix,-1), g_ascii_strup(entity->abbreviation,-1), g_ascii_strup(entity_pk->abbreviation,-1));
+									form->sql_text = g_strdup_printf("select * from %s a , %s b , %s c where ", entity->name, relation->name, entity_pk->name);
+			
+									n = 0 ;
+									for (l_tmp4=g_list_first(entity->attributes);l_tmp4 != NULL; l_tmp4 = l_tmp4->next) {
+										attr = (BimaAttribute *) l_tmp4->data ;
+										if (attr->is_key) {
+											if (n==0) {
+												n = 1;
+												form->sql_text = g_strconcat(form->sql_text ,g_strdup_printf("b.%s_%s = a.%s",fk->name , attr->name, attr->name), NULL);
+											} else
+												form->sql_text = g_strconcat(form->sql_text ,g_strdup_printf(" AND b.%s_%s = a.%s",  fk->name , attr->name ,attr->name), NULL);
+										}
+									}
+			
+									for (l_tmp4=g_list_first(entity_pk->attributes);l_tmp4 != NULL; l_tmp4 = l_tmp4->next) {
+										attr = (BimaAttribute *) l_tmp4->data ;
+										if (attr->is_key) 
+											form->sql_text = g_strconcat(form->sql_text ,g_strdup_printf(" AND b.%s_%s = c.%s",  fk->name , attr->name ,attr->name), NULL);
+									}
+									form->template_id = g_strdup(tform->id);
+									form->id = g_strdup_printf("%s%d",tform->prefix, self->num_forms);
+									//g_print("  MTOM %s %s\n %s\n",form->id,form->name,form->sql_text);
+									if (i == 1)
+										bima_app_data_add_form(self, form);
+									else
+										bima_app_data_add_report(self, form);
+
+									if ( (form != NULL ) && (tform->properties != NULL) ) {
+										bima_form_copy_properties(form, tform->properties );
+										//g_printf("cp prop %d\n", g_list_length(form->properties));
+									}								
+										
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+	}
+	
+	public gint
+	write_to_xml( self , gchar *file_name)
+	{
+		GList *list;
+		FILE *ofile;
+
+		ofile = fopen(file_name , "w");
+		if (!ofile) 
+			return 1;
+		
+		fprintf(ofile, "<?xml version=\"1.0\"?>\n");
+		fprintf(ofile, "<Bima Author=\"%s\">\n",self->author);
+
+		fprintf(ofile, "  <Modules>\n");
+		for (list=g_list_first(self->modules);list != NULL; list = list->next){
+			if (list->data) 
+				bima_module_write_to_xml ( (BimaModule *)(list->data), ofile);
+		}
+		fprintf(ofile, "  </Modules>\n");
+
+		fprintf(ofile, "  <Entities>\n");
+		for (list=g_list_first(self->entities);list != NULL; list = list->next){
+			if (list->data) 
+				bima_entity_write_to_xml ( (BimaEntity *)(list->data), ofile);
+		}
+		fprintf(ofile, "  </Entities>\n");
+
+		fprintf(ofile, "  <Relations>\n");		
+		for (list=g_list_first(self->relations);list != NULL; list = list->next){
+			if (list->data) 
+				bima_relation_write_to_xml ( (BimaRelation *)(list->data), ofile);
+		}
+		fprintf(ofile, "  </Relations>\n");
+		
+		fprintf(ofile, "\n</Bima>");
+
+		fclose (ofile);
+		return 0;
+	}
+
+	public BimaAppData*
+	new (void)
+	{
+		return GET_NEW;
+	}
+}
+

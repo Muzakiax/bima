@@ -1,0 +1,43 @@
+/***************************************************************************
+ *            connection.gob
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+
+requires 2.0.0
+
+%headertop{
+#include "bima-entity.h"
+%}
+
+class Bima:Connection from G:Object { 
+	public gboolean is_total = FALSE;
+	public gchar *entity_id = NULL
+		destroywith g_free;
+		
+	public gint connection=0;
+	public BimaEntity *entity = NULL 
+		destroy {entity = NULL;};
+
+	public BimaConnection*
+	new (void)
+	{
+		return GET_NEW;
+	}
+
+}

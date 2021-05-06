@@ -1,0 +1,1101 @@
+/***************************************************************************
+ *            appgui.gob
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+
+requires 2.0.0
+
+%header{
+#include <gtk/gtk.h>
+#include <glib/gi18n.h>
+#include <libxml/xmlreader.h>
+#include "callback.h"
+#include "bima-app-data.h"
+#include "file-utils.h"
+#include "bima-query.h"
+%}
+
+%h{
+typedef enum {
+	STATE_PARSE,
+	STATE_TABLE,
+	STATE_VIEW,
+	STATE_REPORT,
+	STATE_FORM,
+	STATE_OPTION,
+	STATE_GENERATE
+} BimaState;
+%}
+
+%{
+
+void
+create_step1 (BimaAppGui *app_gui)
+{
+	GtkWidget *step1_vbox;
+	GtkWidget *step1_file_hbox;
+	GtkWidget *step1_file_label;
+	GtkWidget *step1_file_combo;
+
+	GtkWidget *step1_file_brow_btn;
+	GtkWidget *step1_parse_btn;
+	GtkWidget *step1_text_scroll;
+	GtkWidget *step1_text_parse;
+	GtkWidget *step1_app_hbox;
+	GtkWidget *step1_app_lbl;
+	GtkWidget *step1_app_combo;
+	GList *step1_app_combo_items = NULL;
+
+	GtkWidget *step1_label;
+
+	GtkTreeStore *step1_model;
+	GtkCellRenderer *step1_renderer;
+//	GtkTreeIter iter;
+	
+//	int i ;
+//	xmlTextReaderPtr reader;
+	
+	step1_vbox = gtk_vbox_new (FALSE, 5);
+	gtk_widget_show (step1_vbox);
+	gtk_container_add (GTK_CONTAINER (app_gui->main_notebook), step1_vbox);
+	gtk_container_set_border_width (GTK_CONTAINER (step1_vbox), 5);
+	
+	step1_file_hbox = gtk_hbox_new (FALSE, 12);
+	gtk_widget_show (step1_file_hbox);
+	gtk_box_pack_start (GTK_BOX (step1_vbox), step1_file_hbox, FALSE, TRUE, 3);
+	
+	step1_file_label = gtk_label_new (_("File Name : "));
+	gtk_widget_show (step1_file_label);
+	gtk_box_pack_start (GTK_BOX (step1_file_hbox), step1_file_label, FALSE, TRUE, 0);
+	gtk_label_set_justify (GTK_LABEL (step1_file_label), GTK_JUSTIFY_RIGHT);
+	
+	step1_file_combo = gtk_combo_new ();
+	g_object_set_data (G_OBJECT (GTK_COMBO (step1_file_combo)->popwin),
+						"GladeParentKey", step1_file_combo);
+	gtk_widget_show (step1_file_combo);
+	gtk_box_pack_start (GTK_BOX (step1_file_hbox), step1_file_combo, TRUE, TRUE, 0);
+	
+	app_gui->step1_file_entry = GTK_COMBO (step1_file_combo)->entry;
+	gtk_widget_show (app_gui->step1_file_entry);
+/*
+	g_signal_connect ((gpointer)  (app_gui->step1_file_entry), "changed",
+								G_CALLBACK (on_step1_file_entry_changed),
+								app_gui);
+	*/
+	step1_file_brow_btn = gtk_button_new_with_mnemonic (_("Browse"));
+	gtk_widget_show (step1_file_brow_btn);
+	gtk_box_pack_start (GTK_BOX (step1_file_hbox), step1_file_brow_btn, FALSE, FALSE, 0);
+	
+	g_signal_connect ((gpointer)  (step1_file_brow_btn), "clicked",
+								G_CALLBACK (on_step1_file_brow_btn_clicked),
+								app_gui);
+	
+	step1_parse_btn = gtk_button_new_with_mnemonic (_("Parse"));
+	gtk_widget_show (step1_parse_btn);
+	gtk_box_pack_start (GTK_BOX (step1_file_hbox), step1_parse_btn, FALSE, FALSE, 0);
+
+	g_signal_connect ((gpointer)  (step1_parse_btn), "clicked",
+								G_CALLBACK (on_step1_parse_btn_clicked),
+								app_gui);
+	
+	step1_text_scroll = gtk_scrolled_window_new (NULL, NULL);
+	gtk_widget_show (step1_text_scroll);
+	gtk_box_pack_start (GTK_BOX (step1_vbox), step1_text_scroll, TRUE, TRUE, 0);
+	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (step1_text_scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+	
+	step1_text_parse = gtk_text_view_new ();
+	gtk_widget_show (step1_text_parse);
+	gtk_container_add (GTK_CONTAINER (step1_text_scroll), step1_text_parse);
+	gtk_text_view_set_editable (GTK_TEXT_VIEW (step1_text_parse), FALSE);
+	
+	app_gui->step1_text_parse	= step1_text_parse;	 
+	step1_app_hbox = gtk_hbox_new (FALSE, 12);
+	gtk_widget_show (step1_app_hbox);
+	gtk_box_pack_start (GTK_BOX (step1_vbox), step1_app_hbox, FALSE, TRUE, 5);
+	
+	step1_app_lbl = gtk_label_new (_("Application Type : "));
+	gtk_widget_show (step1_app_lbl);
+	gtk_box_pack_start (GTK_BOX (step1_app_hbox), step1_app_lbl, FALSE, FALSE, 2);
+	
+	step1_model = gtk_tree_store_new (2, G_TYPE_STRING, G_TYPE_STRING);
+	
+	step1_app_combo = gtk_combo_box_new_with_model(step1_model);
+	step1_renderer = gtk_cell_renderer_text_new();
+	gtk_cell_layout_pack_start(GTK_CELL_LAYOUT(step1_app_combo), 
+								step1_renderer, TRUE );
+	gtk_cell_layout_set_attributes(GTK_CELL_LAYOUT(step1_app_combo), 
+								step1_renderer, "text",0, NULL );
+
+	gtk_widget_show (step1_app_combo);
+	gtk_box_pack_start (GTK_BOX (step1_app_hbox), step1_app_combo, FALSE, FALSE, 0);
+	
+	app_gui->step1_app_combo = step1_app_combo;
+	
+	step1_label = gtk_label_new (_("Choose File"));
+	gtk_widget_show (step1_label);
+	gtk_notebook_set_tab_label (GTK_NOTEBOOK (app_gui->main_notebook), gtk_notebook_get_nth_page (GTK_NOTEBOOK (app_gui->main_notebook), 0), step1_label);
+
+}
+
+void
+create_step2 (BimaAppGui *app_gui)
+{
+  GtkWidget *step2_hpaned;
+  GtkWidget *step2_main_treescroll;
+  GtkWidget *step2_main_treeview;
+  GtkWidget *step2_main_vbox;
+  GtkWidget *step2_main_label;
+  GtkWidget *step2_main_notebook;
+  GtkWidget *step2_page1_vpaned;
+  GtkWidget *step2_page1_table;
+  
+  GtkWidget *step2_name_label;
+  GtkEntry *step2_name_entry;
+  
+  GtkWidget *step2_sql_scroll;
+  GtkWidget *step2_sql_textview;
+ 
+  GtkWidget *step2_sql_label;
+  GtkWidget *step2_sql_entity_scroll;
+  GtkWidget *step2_sql_entity_treeview;
+  GtkWidget *step2_page1_label;
+  GtkWidget *step2_page2_table;
+
+  GtkWidget *step2_page2_label;
+  GtkWidget *step2_label;
+
+	GtkTreeStore *model;
+	GtkCellRenderer *renderer;
+	GtkTreeViewColumn *column;
+	GtkTreeSelection *tree_select;
+
+  GtkTooltips *tooltips;
+
+  tooltips = gtk_tooltips_new ();
+	
+  step2_hpaned = gtk_hpaned_new ();
+  gtk_widget_show (step2_hpaned);
+  gtk_container_add (GTK_CONTAINER (app_gui->main_notebook), step2_hpaned);
+  gtk_container_set_border_width (GTK_CONTAINER (step2_hpaned), 5);
+
+  step2_main_treescroll = gtk_scrolled_window_new (NULL, NULL);
+  gtk_widget_show (step2_main_treescroll);
+  gtk_paned_pack1 (GTK_PANED (step2_hpaned), step2_main_treescroll, TRUE, TRUE);
+  gtk_widget_set_size_request (step2_main_treescroll, 80, -1);
+  gtk_container_set_border_width (GTK_CONTAINER (step2_main_treescroll), 1);
+  gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (step2_main_treescroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+
+	// 3 => name, id , image_file in form and report but table step as differ TB , AT, Relation
+  model = gtk_tree_store_new (3, G_TYPE_STRING, G_TYPE_STRING,G_TYPE_STRING);
+  step2_main_treeview = gtk_tree_view_new_with_model (model);
+  g_object_unref(G_OBJECT(model));
+  gtk_widget_show (step2_main_treeview);
+  gtk_container_add (GTK_CONTAINER (step2_main_treescroll), step2_main_treeview);
+  gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (step2_main_treeview), FALSE);
+
+	renderer = gtk_cell_renderer_text_new();
+	column = gtk_tree_view_column_new_with_attributes ("Field", renderer, "text", 0, NULL );	
+	gtk_tree_view_append_column(GTK_TREE_VIEW (	step2_main_treeview),column);
+
+ 	tree_select = gtk_tree_view_get_selection(GTK_TREE_VIEW (step2_main_treeview));  
+
+	g_signal_connect (G_OBJECT (tree_select), "changed",
+					G_CALLBACK (on_step2_treeview_sel_changed),	app_gui);
+
+	g_signal_connect ((gpointer) step2_main_treeview, "event_after",
+					G_CALLBACK (on_step2_main_treeview_event),	app_gui);
+
+  app_gui->step2_main_treeview = step2_main_treeview;
+
+  step2_main_vbox = gtk_vbox_new (FALSE, 5);
+  gtk_widget_show (step2_main_vbox);
+  gtk_paned_pack2 (GTK_PANED (step2_hpaned), step2_main_vbox, TRUE, TRUE);
+
+  step2_main_label = gtk_label_new (("<span size=\"xx-large\">Sql View</span>"));
+  gtk_widget_show (step2_main_label);
+  gtk_box_pack_start (GTK_BOX (step2_main_vbox), step2_main_label, FALSE, FALSE, 0);
+  gtk_label_set_use_markup (GTK_LABEL (step2_main_label), TRUE);
+  gtk_misc_set_alignment (GTK_MISC (step2_main_label), 0, 0.1);
+  gtk_misc_set_padding (GTK_MISC (step2_main_label), 5, 0);
+	app_gui->step2_main_label = step2_main_label;
+
+  step2_main_notebook = gtk_notebook_new ();
+  gtk_widget_show (step2_main_notebook);
+  gtk_box_pack_start (GTK_BOX (step2_main_vbox), step2_main_notebook, TRUE, TRUE, 0);
+  app_gui->step2_main_notebook = step2_main_notebook;
+  
+  step2_page1_vpaned = gtk_vpaned_new ();
+  gtk_widget_show (step2_page1_vpaned);
+  gtk_container_add (GTK_CONTAINER (step2_main_notebook), step2_page1_vpaned);
+  gtk_container_set_border_width (GTK_CONTAINER (step2_page1_vpaned), 2);
+
+  step2_page1_table = gtk_table_new (4, 3, FALSE);
+  gtk_widget_show (step2_page1_table);
+  gtk_paned_pack1 (GTK_PANED (step2_page1_vpaned), step2_page1_table, FALSE, TRUE);
+  gtk_container_set_border_width (GTK_CONTAINER (step2_page1_table), 3);
+  gtk_table_set_row_spacings (GTK_TABLE (step2_page1_table), 4);
+  gtk_table_set_col_spacings (GTK_TABLE (step2_page1_table), 4);
+  
+  app_gui->step2_page1_table = step2_page1_table;
+
+  step2_name_label = gtk_label_new (_("Name : "));
+  gtk_widget_show (step2_name_label);
+  gtk_table_attach (GTK_TABLE (step2_page1_table), step2_name_label, 0, 1, 0, 1,
+                    (GtkAttachOptions) (GTK_FILL),
+                    (GtkAttachOptions) (0), 0, 0);
+  gtk_misc_set_alignment (GTK_MISC (step2_name_label), 0, 0.5);
+
+  step2_name_entry = gtk_entry_new ();
+  gtk_widget_show (step2_name_entry);
+  gtk_table_attach (GTK_TABLE (step2_page1_table), step2_name_entry, 1, 2, 0, 1,
+                    (GtkAttachOptions) (GTK_EXPAND | GTK_FILL),
+                    (GtkAttachOptions) (0), 0, 1);
+
+	g_signal_connect ((gpointer) step2_name_entry, "changed",
+					G_CALLBACK (on_step2_name_entry_changed),
+					app_gui);
+
+  app_gui->step2_name_entry = step2_name_entry;
+  
+  step2_sql_label = gtk_label_new (_("Query  : "));
+  gtk_widget_show (step2_sql_label);
+  gtk_table_attach (GTK_TABLE (step2_page1_table), step2_sql_label, 0, 1, 3, 4,
+                    (GtkAttachOptions) (GTK_FILL),
+                    (GtkAttachOptions) (GTK_FILL), 0, 0);
+  gtk_misc_set_alignment (GTK_MISC (step2_sql_label), 0, 0);
+
+  step2_sql_scroll = gtk_scrolled_window_new (NULL, NULL);
+  gtk_widget_show (step2_sql_scroll);
+  gtk_table_attach (GTK_TABLE (step2_page1_table), step2_sql_scroll, 1, 3, 3, 4,
+                    (GtkAttachOptions) (GTK_EXPAND | GTK_FILL),
+                    (GtkAttachOptions) (GTK_EXPAND | GTK_FILL), 0, 1);
+//  gtk_widget_set_size_request (step2_sql_scroll, 80, 200);
+  gtk_container_set_border_width (GTK_CONTAINER (step2_sql_scroll), 1);
+  gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (step2_sql_scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+
+  step2_sql_textview = gtk_text_view_new ();
+  gtk_widget_show (step2_sql_textview);
+  gtk_container_add (GTK_CONTAINER (step2_sql_scroll), step2_sql_textview);
+  app_gui->step2_sql_textview = step2_sql_textview;
+
+	g_signal_connect ((gpointer) step2_sql_textview, "focus_out_event",
+                    G_CALLBACK (on_step2_sql_textview_focus_out),
+                    app_gui);
+
+  step2_sql_entity_scroll = gtk_scrolled_window_new (NULL, NULL);
+  gtk_widget_show (step2_sql_entity_scroll);
+  gtk_paned_pack2 (GTK_PANED (step2_page1_vpaned), step2_sql_entity_scroll, TRUE, TRUE);
+  gtk_container_set_border_width (GTK_CONTAINER (step2_sql_entity_scroll), 3);
+  gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (step2_sql_entity_scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+
+  model = gtk_tree_store_new (3, G_TYPE_BOOLEAN , G_TYPE_STRING, G_TYPE_STRING);
+//  step2_sql_entity_treeview = gtk_tree_view_new ();
+  step2_sql_entity_treeview = gtk_tree_view_new_with_model (model);
+  g_object_unref(G_OBJECT(model));
+
+  gtk_widget_show (step2_sql_entity_treeview);
+  gtk_container_add (GTK_CONTAINER (step2_sql_entity_scroll), step2_sql_entity_treeview);
+  gtk_tooltips_set_tip (tooltips, step2_sql_entity_treeview, ("TODO :: Query Builder"), NULL);
+
+//	renderer = gtk_cell_renderer_text_new();
+//	column = gtk_tree_view_column_new_with_attributes ("Field", renderer, "text", 0, NULL );	
+//	gtk_tree_view_append_column(GTK_TREE_VIEW (	step2_main_treeview),column);
+
+	column = gtk_tree_view_column_new();
+	gtk_tree_view_column_set_sizing(column, GTK_TREE_VIEW_COLUMN_GROW_ONLY);
+	gtk_tree_view_column_set_title(column,"Field");
+	
+	renderer = gtk_cell_renderer_toggle_new();
+	gtk_tree_view_column_pack_start(column,renderer,FALSE);
+	gtk_tree_view_column_add_attribute (column, renderer, "active", 0);
+
+	renderer = gtk_cell_renderer_text_new();
+	gtk_tree_view_column_pack_start(column,renderer,TRUE);
+	gtk_tree_view_column_add_attribute (column, renderer, "text", 1);
+
+	gtk_tree_view_append_column(GTK_TREE_VIEW (step2_sql_entity_treeview),column);
+
+	column = gtk_tree_view_column_new();
+	gtk_tree_view_column_set_sizing(column, GTK_TREE_VIEW_COLUMN_AUTOSIZE);
+	gtk_tree_view_column_set_title(column,"Alias");
+
+	renderer = gtk_cell_renderer_text_new();
+	gtk_tree_view_column_pack_start(column,renderer,TRUE);
+	gtk_tree_view_column_add_attribute (column, renderer, "text", 1);
+
+	gtk_tree_view_append_column(GTK_TREE_VIEW (step2_sql_entity_treeview),column);
+
+  step2_page1_label = gtk_label_new (_("Page 1"));
+  gtk_widget_show (step2_page1_label);
+  gtk_notebook_set_tab_label (GTK_NOTEBOOK (step2_main_notebook), gtk_notebook_get_nth_page (GTK_NOTEBOOK (step2_main_notebook), 0), step2_page1_label);
+
+  step2_page2_table = gtk_table_new (1, 2, FALSE);
+  gtk_widget_show (step2_page2_table);
+  gtk_container_add (GTK_CONTAINER (step2_main_notebook), step2_page2_table);
+  gtk_container_set_border_width (GTK_CONTAINER (step2_page2_table), 3);
+  gtk_table_set_row_spacings (GTK_TABLE (step2_page2_table), 3);
+  gtk_table_set_col_spacings (GTK_TABLE (step2_page2_table), 3);
+
+  app_gui->step2_page2_table = step2_page2_table;
+
+  step2_page2_label = gtk_label_new (_("Page 2"));
+  gtk_widget_show (step2_page2_label);
+  gtk_notebook_set_tab_label (GTK_NOTEBOOK (step2_main_notebook), gtk_notebook_get_nth_page (GTK_NOTEBOOK (step2_main_notebook), 1), step2_page2_label);
+
+  step2_label = gtk_label_new (_("View"));
+  gtk_widget_show (step2_label);
+  gtk_notebook_set_tab_label (GTK_NOTEBOOK (app_gui->main_notebook), gtk_notebook_get_nth_page (GTK_NOTEBOOK (app_gui->main_notebook), 1), step2_label);
+
+}
+
+void
+create_step5(BimaAppGui *app_gui) 
+{
+  GtkWidget *step5_vbox;
+  GtkWidget *step5_output_table;
+  GtkWidget *step5_output_label;
+  GtkWidget *step5_output_combo;
+  GtkWidget *step5_output_dir_entry;
+  GtkWidget *step5_browse_button;
+  GtkWidget *step5_hbox;
+  GtkWidget *step5_left_scroll;
+  GtkWidget *step5_viewport1;
+  GtkWidget *step5_left_table;
+  GtkWidget *step5_project_label;
+  GtkWidget *step5_project_entry;
+  GtkWidget *step5_right_scroll;
+  GtkWidget *step5_viewport2;
+  GtkWidget *step5_right_table;
+  GtkWidget *step5_label;
+
+  step5_vbox = gtk_vbox_new (FALSE, 2);
+  gtk_widget_show (step5_vbox);
+  gtk_container_add (GTK_CONTAINER (app_gui->main_notebook), step5_vbox);
+  gtk_container_set_border_width (GTK_CONTAINER (step5_vbox), 4);
+
+  step5_output_table = gtk_table_new (1, 3, FALSE);
+  gtk_widget_show (step5_output_table);
+  gtk_box_pack_start (GTK_BOX (step5_vbox), step5_output_table, FALSE, TRUE, 0);
+
+  step5_output_label = gtk_label_new (_("Ouput Directory : "));
+  gtk_widget_show (step5_output_label);
+  gtk_table_attach (GTK_TABLE (step5_output_table), step5_output_label, 0, 1, 0, 1,
+                    (GtkAttachOptions) (GTK_FILL),
+                    (GtkAttachOptions) (0), 0, 0);
+  gtk_misc_set_alignment (GTK_MISC (step5_output_label), 0, 0.5);
+
+  step5_output_combo = gtk_combo_new ();
+  g_object_set_data (G_OBJECT (GTK_COMBO (step5_output_combo)->popwin),
+                     "GladeParentKey", step5_output_combo);
+  gtk_widget_show (step5_output_combo);
+  gtk_table_attach (GTK_TABLE (step5_output_table), step5_output_combo, 1, 2, 0, 1,
+                    (GtkAttachOptions) (GTK_EXPAND | GTK_FILL),
+                    (GtkAttachOptions) (0), 0, 0);
+
+  step5_output_dir_entry = GTK_COMBO (step5_output_combo)->entry;
+  gtk_widget_show (step5_output_dir_entry);
+
+	g_signal_connect ((gpointer)  (step5_output_dir_entry), "changed",
+					G_CALLBACK (on_step5_output_dir_entry_changed),
+					app_gui);
+
+	app_gui->step5_output_dir_entry = step5_output_dir_entry;
+	
+  step5_browse_button = gtk_button_new_with_mnemonic (("Browse"));
+  gtk_widget_show (step5_browse_button);
+  gtk_table_attach (GTK_TABLE (step5_output_table), step5_browse_button, 2, 3, 0, 1,
+                    (GtkAttachOptions) (GTK_FILL),
+                    (GtkAttachOptions) (0), 0, 0);
+
+	g_signal_connect ((gpointer)  (step5_browse_button), "clicked",
+					G_CALLBACK (on_step5_browse_button_clicked),
+					app_gui);
+
+  gtk_container_set_border_width (GTK_CONTAINER (step5_browse_button), 3);
+
+  step5_hbox = gtk_hbox_new (FALSE, 4);
+  gtk_widget_show (step5_hbox);
+  gtk_box_pack_start (GTK_BOX (step5_vbox), step5_hbox, TRUE, TRUE, 0);
+
+  step5_left_scroll = gtk_scrolled_window_new (NULL, NULL);
+  gtk_widget_show (step5_left_scroll);
+  gtk_box_pack_start (GTK_BOX (step5_hbox), step5_left_scroll, TRUE, TRUE, 0);
+  gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (step5_left_scroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+
+  step5_viewport1 = gtk_viewport_new (NULL, NULL);
+  gtk_widget_show (step5_viewport1);
+  gtk_container_add (GTK_CONTAINER (step5_left_scroll), step5_viewport1);
+
+  step5_left_table = gtk_table_new (4, 2, FALSE);
+  gtk_widget_show (step5_left_table);
+  gtk_container_add (GTK_CONTAINER (step5_viewport1), step5_left_table);
+  gtk_container_set_border_width (GTK_CONTAINER (step5_left_table), 2);
+  gtk_table_set_row_spacings (GTK_TABLE (step5_left_table), 4);
+  gtk_table_set_col_spacings (GTK_TABLE (step5_left_table), 4);
+  app_gui->step5_left_table = step5_left_table;
+  step5_right_scroll = gtk_scrolled_window_new (NULL, NULL);
+  gtk_widget_show (step5_right_scroll);
+  gtk_box_pack_start (GTK_BOX (step5_hbox), step5_right_scroll, TRUE, TRUE, 0);
+  gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (step5_right_scroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+
+  step5_viewport2 = gtk_viewport_new (NULL, NULL);
+  gtk_widget_show (step5_viewport2);
+  gtk_container_add (GTK_CONTAINER (step5_right_scroll), step5_viewport2);
+
+  step5_right_table = gtk_table_new (5, 2, FALSE);
+  gtk_widget_show (step5_right_table);
+  gtk_container_add (GTK_CONTAINER (step5_viewport2), step5_right_table);
+  gtk_container_set_border_width (GTK_CONTAINER (step5_right_table), 2);
+  gtk_table_set_row_spacings (GTK_TABLE (step5_right_table), 4);
+  gtk_table_set_col_spacings (GTK_TABLE (step5_right_table), 4);
+  app_gui->step5_right_table = step5_right_table;
+
+  step5_label = gtk_label_new (("Final Prop"));
+  gtk_widget_show (step5_label);
+  gtk_notebook_set_tab_label (GTK_NOTEBOOK (app_gui->main_notebook), gtk_notebook_get_nth_page (GTK_NOTEBOOK (app_gui->main_notebook), 2), step5_label);
+
+}
+
+void
+create_step6(BimaAppGui *app_gui) 
+{
+  GtkWidget *step6_vbox;
+  GtkWidget *step6_generate_button;
+  GtkWidget *step6_generate_scroll;
+  GtkWidget *step6_generate_treeview;
+  GtkWidget *step6_label;
+
+	GtkTreeStore *model;
+	GtkCellRenderer *renderer;
+	GtkTreeViewColumn *column;
+
+  step6_vbox = gtk_vbox_new (FALSE, 5);
+  gtk_widget_show (step6_vbox);
+  gtk_container_add (GTK_CONTAINER (app_gui->main_notebook), step6_vbox);
+  gtk_container_set_border_width (GTK_CONTAINER (step6_vbox), 5);
+
+  step6_generate_button = gtk_button_new_with_mnemonic (("Generate"));
+  gtk_widget_show (step6_generate_button);
+  gtk_box_pack_start (GTK_BOX (step6_vbox), step6_generate_button, FALSE, FALSE, 2);
+  gtk_container_set_border_width (GTK_CONTAINER (step6_generate_button), 1);
+
+	g_signal_connect ((gpointer) step6_generate_button, "clicked",
+							G_CALLBACK (on_step6_generate_button_clicked),
+							app_gui);	
+
+  app_gui->step6_generate_button = step6_generate_button;
+  
+  step6_generate_scroll = gtk_scrolled_window_new (NULL, NULL);
+  gtk_widget_show (step6_generate_scroll);
+  gtk_box_pack_start (GTK_BOX (step6_vbox), step6_generate_scroll, TRUE, TRUE, 0);
+  gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (step6_generate_scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+
+//  step6_generate_treeview = gtk_tree_view_new ();
+	model = gtk_tree_store_new (2, G_TYPE_STRING, GDK_TYPE_COLOR);
+	step6_generate_treeview = gtk_tree_view_new_with_model (model);
+	g_object_unref(G_OBJECT(model));
+
+  gtk_widget_show (step6_generate_treeview);
+  gtk_container_add (GTK_CONTAINER (step6_generate_scroll), step6_generate_treeview);
+  gtk_container_set_border_width (GTK_CONTAINER (step6_generate_treeview), 2);
+  gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (step6_generate_treeview), FALSE);
+  app_gui->step6_generate_treeview = step6_generate_treeview;
+
+	renderer = gtk_cell_renderer_text_new();
+	column = gtk_tree_view_column_new_with_attributes ("Messege", renderer, "text", 0, "foreground-gdk",1, NULL );	
+	gtk_tree_view_append_column(GTK_TREE_VIEW (step6_generate_treeview ),column);
+	
+  
+  step6_label = gtk_label_new (("Generate"));
+  gtk_widget_show (step6_label);
+  gtk_notebook_set_tab_label (GTK_NOTEBOOK (app_gui->main_notebook), gtk_notebook_get_nth_page (GTK_NOTEBOOK (app_gui->main_notebook), 3), step6_label);
+
+}
+
+GtkWidget*
+create_popup_menu (BimaAppGui *bgui)
+{
+	GtkWidget *popup_menu;
+	GtkWidget *popup_mnu_add;
+	GtkWidget *image3;
+	GtkWidget *popup_mnu_remove;
+	GtkWidget *image4;
+	GtkWidget *popup_mnu_separator;
+	GtkWidget *popup_mnu_refresh;
+	GtkWidget *image5;
+	
+	popup_menu = gtk_menu_new ();
+	
+	popup_mnu_add = gtk_image_menu_item_new_with_mnemonic (("Add"));
+	gtk_widget_show (popup_mnu_add);
+	gtk_container_add (GTK_CONTAINER (popup_menu), popup_mnu_add);
+	
+	image3 = gtk_image_new_from_stock ("gtk-add", GTK_ICON_SIZE_MENU);
+	gtk_widget_show (image3);
+	gtk_image_menu_item_set_image (GTK_IMAGE_MENU_ITEM (popup_mnu_add), image3);
+	
+	popup_mnu_remove = gtk_image_menu_item_new_with_mnemonic (("Remove"));
+	gtk_widget_show (popup_mnu_remove);
+	gtk_container_add (GTK_CONTAINER (popup_menu), popup_mnu_remove);
+	
+	image4 = gtk_image_new_from_stock ("gtk-remove", GTK_ICON_SIZE_MENU);
+	gtk_widget_show (image4);
+	gtk_image_menu_item_set_image (GTK_IMAGE_MENU_ITEM (popup_mnu_remove), image4);
+
+
+	popup_mnu_separator = gtk_menu_item_new ();
+	gtk_widget_show (popup_mnu_separator);
+	gtk_container_add (GTK_CONTAINER (popup_menu), popup_mnu_separator);
+	gtk_widget_set_sensitive (popup_mnu_separator, FALSE);
+	
+	popup_mnu_refresh = gtk_image_menu_item_new_with_mnemonic (("Refres"));
+	gtk_widget_show (popup_mnu_refresh);
+	gtk_container_add (GTK_CONTAINER (popup_menu), popup_mnu_refresh);
+	
+	image5 = gtk_image_new_from_stock ("gtk-refresh", GTK_ICON_SIZE_MENU);
+	gtk_widget_show (image5);
+	gtk_image_menu_item_set_image (GTK_IMAGE_MENU_ITEM (popup_mnu_refresh), image5);
+	
+	g_signal_connect ((gpointer) popup_mnu_add, "activate",
+					G_CALLBACK (on_popup_mnu_add_activate),
+					bgui);
+	g_signal_connect ((gpointer) popup_mnu_remove, "activate",
+					G_CALLBACK (on_popup_mnu_remove_activate),
+					bgui);
+	g_signal_connect ((gpointer) popup_mnu_refresh, "activate",
+					G_CALLBACK (on_popup_mnu_refresh_activate),
+					bgui);
+	
+  return popup_menu;
+}
+
+%}
+
+class Bima:App:Gui from Gtk:Window {
+	public BimaAppData *app_data={bima_app_data_new()};
+	public GObject *cur_obj={NULL};
+
+	public BimaQuery *query = { NULL }
+		destroy { 
+			if (query != NULL) 
+				g_object_unref((GObject *) query);
+		};
+
+	public GtkWidget *main_left_image; 
+	public GtkWidget *main_notebook;
+	public GtkWidget *back_button;
+	public GtkWidget *forward_button;
+
+	public GtkEntry *step1_file_entry;
+	public GtkWidget *step1_text_parse;
+	public GtkWidget *step1_app_combo;
+
+	public GtkWidget *step2_main_label;
+	public GtkEntry *step2_name_entry;
+	public GtkWidget *step2_main_treeview;
+	public GtkWidget *step2_main_notebook;
+	public GtkWidget *step2_page1_table;
+	public GtkWidget *step2_page2_table;
+	public GtkWidget *step2_sql_textview;
+
+	public GtkWidget *step5_left_table;
+	public GtkWidget *step5_right_table;
+	public GtkEntry *step5_output_dir_entry;
+	
+	public GtkWidget *step6_generate_button;
+	public GtkWidget *step6_generate_treeview;
+	
+	public GtkWidget *popup_menu;
+	
+	public BimaState state;
+			
+	init (self) 
+	{
+		GtkWidget *main_vbox;
+		GtkWidget *main_eventbox;
+		GtkWidget *head_eventbox;
+		GtkWidget *head_hbox;
+		GtkWidget *head_alignment;
+		GtkWidget *title_label;
+		GtkWidget *main_logo_image;
+		GtkWidget *body_hbox;
+		GtkWidget *left_eventbox;
+		GtkWidget *main_hbtnbox;
+		GtkWidget *about_button;
+		GtkWidget *help_button;
+		GtkWidget *cancel_button;
+		GtkWidget *back_button;
+		GtkWidget *forward_button;
+		GdkColor the_color;
+
+		gdk_color_parse("#83ACD8", &the_color);
+		gtk_window_set_title (GTK_WINDOW (self),"Bima");
+		gtk_window_set_default_size (GTK_WINDOW (self), 750, 550);
+
+		main_eventbox = gtk_event_box_new ();
+		//gtk_widget_modify_bg(main_eventbox,GTK_STATE_NORMAL,&the_color);
+		gtk_widget_show (main_eventbox);
+		gtk_container_add (GTK_CONTAINER (self), main_eventbox);
+		gtk_container_set_border_width (GTK_CONTAINER (main_eventbox), 4);
+
+		main_vbox = gtk_vbox_new (FALSE, 2);
+		gtk_widget_show (main_vbox);
+//		gtk_container_add (GTK_CONTAINER (self), main_vbox);
+		gtk_container_add (GTK_CONTAINER (main_eventbox), main_vbox);
+		gtk_container_set_border_width (GTK_CONTAINER (main_vbox), 2);
+
+	//gdk_color_parse("#93ACD9", &the_color);
+
+		head_eventbox = gtk_event_box_new ();
+		gtk_widget_modify_bg(head_eventbox,GTK_STATE_NORMAL,&the_color);
+		gtk_widget_show (head_eventbox);
+		gtk_box_pack_start (GTK_BOX (main_vbox), head_eventbox, FALSE, TRUE, 0);
+		gtk_container_set_border_width (GTK_CONTAINER (head_eventbox), 3);
+
+		head_hbox = gtk_hbox_new (FALSE, 8);
+		gtk_widget_show (head_hbox);
+		gtk_container_add (GTK_CONTAINER (head_eventbox), head_hbox);
+		gtk_container_set_border_width (GTK_CONTAINER (head_hbox), 4);
+
+		head_alignment = gtk_alignment_new (0, 0.5, 0, 0);
+		gtk_widget_show (head_alignment);
+		gtk_box_pack_start (GTK_BOX (head_hbox), head_alignment, TRUE, TRUE, 0);
+
+		title_label = gtk_label_new (("<span size=\"xx-large\" color=\"Blue\">Bima</span>"));
+		gtk_widget_show (title_label);
+		gtk_container_add (GTK_CONTAINER (head_alignment), title_label);
+		gtk_label_set_use_markup (GTK_LABEL (title_label), TRUE);
+
+		main_logo_image = gtk_image_new_from_stock ("gtk-missing-image", GTK_ICON_SIZE_BUTTON);
+		gtk_widget_show (main_logo_image);
+		gtk_box_pack_start (GTK_BOX (head_hbox), main_logo_image, FALSE, FALSE, 0);
+
+		body_hbox = gtk_hbox_new (FALSE, 5);
+		gtk_widget_show (body_hbox);
+		gtk_box_pack_start (GTK_BOX (main_vbox), body_hbox, TRUE, TRUE, 0);
+
+		left_eventbox = gtk_event_box_new ();
+		//gtk_widget_modify_bg(left_eventbox,GTK_STATE_NORMAL,&the_color);
+		gtk_widget_show (left_eventbox);
+		gtk_box_pack_start (GTK_BOX (body_hbox), left_eventbox, FALSE, TRUE, 0);
+
+		self->main_left_image = gtk_image_new_from_stock ("gtk-missing-image", GTK_ICON_SIZE_BUTTON);
+		gtk_widget_show (self->main_left_image);
+		gtk_container_add (GTK_CONTAINER (left_eventbox), self->main_left_image);
+		gtk_widget_set_size_request (self->main_left_image, 175, -1);
+
+		main_hbtnbox = gtk_hbutton_box_new ();
+		gtk_widget_show (main_hbtnbox);
+		gtk_box_pack_end (GTK_BOX (main_vbox), main_hbtnbox, FALSE, FALSE, 0);
+		gtk_container_set_border_width (GTK_CONTAINER (main_hbtnbox), 6);
+
+		about_button = gtk_button_new_from_stock ("gtk-about");
+		gtk_widget_show (about_button);
+		gtk_container_add (GTK_CONTAINER (main_hbtnbox), about_button);
+		GTK_WIDGET_SET_FLAGS (about_button, GTK_CAN_DEFAULT);
+
+		help_button = gtk_button_new_from_stock ("gtk-help");
+		gtk_widget_show (help_button);
+		gtk_container_add (GTK_CONTAINER (main_hbtnbox), help_button);
+		GTK_WIDGET_SET_FLAGS (help_button, GTK_CAN_DEFAULT);
+
+		cancel_button = gtk_button_new_from_stock ("gtk-cancel");
+		gtk_widget_show (cancel_button);
+		gtk_container_add (GTK_CONTAINER (main_hbtnbox), cancel_button);
+		GTK_WIDGET_SET_FLAGS (cancel_button, GTK_CAN_DEFAULT);
+
+		back_button = gtk_button_new_from_stock ("gtk-go-back");
+		gtk_widget_show (back_button);
+		gtk_container_add (GTK_CONTAINER (main_hbtnbox), back_button);
+		GTK_WIDGET_SET_FLAGS (back_button, GTK_CAN_DEFAULT);
+		gtk_widget_set_sensitive(back_button,FALSE);
+
+		self->back_button = back_button;
+		g_signal_connect ((gpointer) (back_button), "clicked",
+								G_CALLBACK (on_back_button_clicked),
+								self);
+		
+		forward_button = gtk_button_new_from_stock ("gtk-go-forward");
+		gtk_widget_show (forward_button);
+		gtk_container_add (GTK_CONTAINER (main_hbtnbox), forward_button);
+		GTK_WIDGET_SET_FLAGS (forward_button, GTK_CAN_DEFAULT);
+		self->forward_button = forward_button;
+
+		g_signal_connect ((gpointer) (forward_button), "clicked",
+								G_CALLBACK (on_forward_button_clicked),
+								self);
+		
+		self->main_notebook = gtk_notebook_new ();
+		gtk_widget_show (self->main_notebook);
+		gtk_box_pack_start (GTK_BOX (body_hbox), self->main_notebook, TRUE, TRUE, 0);
+//		gtk_notebook_set_show_border (GTK_NOTEBOOK (main_notebook), FALSE);
+		gtk_notebook_set_tab_pos (GTK_NOTEBOOK (self->main_notebook), GTK_POS_BOTTOM);
+
+		self->state = STATE_PARSE;
+		
+		create_step1(self);
+		self->app_data->author = g_get_real_name() ;
+		
+		bima_app_gui_fill_step1_combo(self,PACKAGE_TEMPLATE_DIR); 
+		
+		gtk_text_buffer_set_text (gtk_text_view_get_buffer (GTK_TEXT_VIEW (self->step1_text_parse)),
+		("Thank you for using Bima \n\
+			  First : Choose a ER diagram (created by Dia application) by click browse button\n\
+			  Second : Click parse button\n\
+			  and now you can use forward button ;) \n\
+		 "), -1);
+
+		create_step2(self);
+		create_step5(self);
+		create_step6(self);
+		self->popup_menu = create_popup_menu(self);
+	}
+
+	public 
+	void fill_step1_combo(self, gchar *template_dir)
+	{
+		GtkTreeStore *model;
+		GtkTreeIter iter;
+		GDir *tmp_dir;
+	  	char *tmp_name_file;
+		xmlDocPtr tmp_xml_doc;	
+		xmlNodePtr tmp_xml_node;
+
+		model = GTK_TREE_STORE (gtk_combo_box_get_model(self->step1_app_combo));
+		gtk_tree_store_clear(GTK_TREE_STORE(model));
+		
+		g_printf("open template dir : %s\n", template_dir);
+
+	  	tmp_dir = g_dir_open( template_dir ,0,NULL);
+  		tmp_name_file = g_dir_read_name(tmp_dir);
+	  	while (tmp_name_file) {
+			if (!strcmp("bmt",get_file_name_ext(tmp_name_file))) {
+				tmp_xml_doc = xmlParseFile( g_strconcat( template_dir , "/",tmp_name_file,NULL));
+			
+				if (tmp_xml_doc)  {
+					tmp_xml_node = xmlDocGetRootElement(tmp_xml_doc);
+					if (!xmlStrcmp(tmp_xml_node->name, (const xmlChar *) "BimaTemplate")) {
+
+						gtk_tree_store_append (model,&iter,NULL);
+						gtk_tree_store_set (model, &iter, 0 ,  xmlGetProp(tmp_xml_node,"name"),1, g_strconcat( template_dir , "/",tmp_name_file,NULL), -1);
+					}
+					xmlFreeDoc(tmp_xml_doc);
+				}
+			}
+  			tmp_name_file = g_dir_read_name(tmp_dir);
+  		}
+  		g_dir_close(tmp_dir);
+  		gtk_combo_box_set_active(self->step1_app_combo,0);
+	}
+
+	public
+	void show_modules(self, GList *next_list, gchar *parent_id, GtkTreeIter parent_iter) {
+		GList *list, *l_tmp, *l_tmp2;
+		GtkTreeStore *model;
+		GtkTreeIter iter;
+		GtkTreeIter piter;
+		BimaModule *module=NULL;
+		piter = parent_iter;
+		
+		model = GTK_TREE_STORE (gtk_tree_view_get_model(GTK_TREE_VIEW (self->step2_main_treeview)));
+
+		if (!parent_id) {
+			gtk_tree_store_clear(GTK_TREE_STORE(model));
+		}
+		
+		if (!next_list)
+			list = g_list_first(self->app_data->modules);
+		else
+			list = next_list;
+		//g_printf("\nproc call parent %s \n", parent_id);
+		for (; list != NULL ; list=list->next) {
+			module = (BimaModule *) (list->data);	
+			if (!module)
+				return;
+			//g_printf("  mdl name %s id %s parent %s\n", module->name, module->id, module->parent_id);
+			if ( (!parent_id) && (module->parent_id == NULL ) ) {
+				gtk_tree_store_append ( model,&iter,NULL);
+				gtk_tree_store_set (model, &iter, 0 , g_strdup_printf("Mdl %s",module->name) ,1, module->id, 2, "MD", -1);
+				//g_printf("    mdl parent is null too %s \n", module->id);
+				
+				bima_app_gui_show_tables(self, module->id, iter);
+
+				if (list->next) {
+					//g_printf("  go to proc parent %s \n", module->id);
+					bima_app_gui_show_modules(self,list->next, module->id, iter);
+				}
+			} else {
+				if ( (parent_id) && (module->parent_id) && (!g_ascii_strcasecmp(parent_id, module->parent_id)) ) {
+					//g_printf("    mdl parent is not null %s.%s \n", module->parent_id, module->id);
+					gtk_tree_store_append ( model,&iter, &piter);
+					gtk_tree_store_set (model, &iter, 0 , g_strdup_printf("Mdl %s",module->name) ,1, module->id, 2, "MD", -1);			
+
+					bima_app_gui_show_tables(self, module->id, iter);
+					if (list->next) {
+						//g_printf("  go to proc parent %s \n", module->id);
+						bima_app_gui_show_modules(self,list->next, module->id, iter);
+					}				
+				}	 				
+			}
+
+		}
+	}
+		
+	public 
+	void show_tables(self, gchar *module_id, GtkTreeIter module_iter)
+	{
+		gint i;
+		GtkTreeStore *model;
+		GtkTreeIter parent_iter, iter, child_iter;
+
+		GList *list, *l_tmp, *l_tmp2;
+		BimaEntity *entity=NULL;
+		BimaAttribute *attribute=NULL;
+		 		
+		model = GTK_TREE_STORE (gtk_tree_view_get_model(GTK_TREE_VIEW (self->step2_main_treeview)));
+		//gtk_tree_store_clear(GTK_TREE_STORE(model));
+		
+		for ( i = 0 ; i < 2 ; i++) {
+			if (i == 0 )
+				l_tmp = g_list_first(self->app_data->entities);
+			else 
+				l_tmp = g_list_first(self->app_data->relations);
+
+			while (l_tmp != NULL) {
+				entity = (BimaEntity *) (l_tmp->data);
+					
+				
+				if (!g_ascii_strcasecmp(module_id, entity->module_id)) {
+					parent_iter = module_iter;
+					
+					gtk_tree_store_append ( model,&iter,&parent_iter);
+					if (i == 0 )
+						gtk_tree_store_set (model, &iter, 0 ,  g_strdup_printf("Tbl %s",entity->name),1, entity->id, 2, "TB", -1);
+					else
+						gtk_tree_store_set (model, &iter, 0 ,  g_strdup_printf("Rlt %s",entity->name),1, entity->id, 2, "RL", -1);
+
+					l_tmp2 = g_list_first(entity->attributes);
+					while (l_tmp2 != NULL ) {
+						attribute = (BimaAttribute *) (l_tmp2->data);
+						gtk_tree_store_append ( model,&child_iter ,&iter );
+						if ( attribute->is_key == 1)
+							gtk_tree_store_set (model, &child_iter, 0 ,  g_strdup_printf("%s PK",attribute->name),1, attribute->id, 2, "AT", -1);
+						else
+							gtk_tree_store_set (model, &child_iter, 0 , attribute->name,1, attribute->id, 2, "AT", -1);
+		
+						l_tmp2 = l_tmp2->next;
+					}
+		
+					l_tmp2 = g_list_first(entity->foreign_key);
+					while (l_tmp2 != NULL ) {
+						gtk_tree_store_append ( model,&child_iter ,&iter );
+						gtk_tree_store_set (model, &child_iter, 0 , g_strdup_printf("%s FK",((BimaForeignKey *)(l_tmp2->data))->name),1, "FK",2, "FK", -1);
+
+						l_tmp2 = l_tmp2->next;
+					}		
+				}
+				
+				l_tmp = l_tmp->next;
+			}
+		}
+	}
+
+	public 
+	void show_views(self)
+	{
+		GtkTreeStore *model;
+		//GtkTreeIter iter,
+		GtkTreeIter child_iter, grand_iter;
+
+		GList *l_tmp, *l_tmp2;
+		BimaView *view;
+		BimaEntity *entity;
+		
+		model = GTK_TREE_STORE (gtk_tree_view_get_model(GTK_TREE_VIEW (self->step2_main_treeview)));
+		gtk_tree_store_clear(GTK_TREE_STORE(model));
+
+		//gtk_tree_store_append ( model,&iter,NULL);
+		//gtk_tree_store_set (model, &iter, 0 , "Views", 1, "parent",-1);
+
+		for (l_tmp=g_list_first(self->app_data->entities);l_tmp != NULL; l_tmp = l_tmp->next) {
+
+			entity = (BimaEntity *) (l_tmp->data);
+			gtk_tree_store_append ( model,&child_iter , NULL );
+			gtk_tree_store_set (model, &child_iter, 0 ,  entity->name,1, entity->id, 2, "entity", -1);
+			
+			for (l_tmp2=g_list_first(self->app_data->views);l_tmp2 != NULL; l_tmp2 = l_tmp2->next) {
+				view = (BimaView *) l_tmp2->data;
+				if (!g_ascii_strcasecmp(entity->id, view->primary_obj_id)) {
+					gtk_tree_store_append ( model,&grand_iter ,&child_iter );
+					gtk_tree_store_set (model, &grand_iter, 0, view->name,1, view->id, 2, "view", -1);
+				}
+			}
+		}
+	}
+		
+	public 
+	void show_reports(self)
+	{
+		GtkTreeStore *model;
+		//GtkTreeIter iter, 
+		GtkTreeIter child_iter, grand_iter;
+
+		GList *l_tmp, *l_tmp2;
+		BimaForm *report;
+		BimaTemplateForm *treport;
+		
+		model = GTK_TREE_STORE (gtk_tree_view_get_model(GTK_TREE_VIEW (self->step2_main_treeview)));
+		gtk_tree_store_clear(GTK_TREE_STORE(model));
+
+		//gtk_tree_store_append ( model,&iter,NULL);
+		//gtk_tree_store_set (model, &iter, 0 , "Reports", 1, "parent",-1);
+
+		for (l_tmp=g_list_first(self->app_data->template->treports);l_tmp != NULL; l_tmp = l_tmp->next) {
+
+			treport = (BimaTemplateForm *) (l_tmp->data);
+			gtk_tree_store_append ( model,&child_iter ,NULL);
+			
+			gtk_tree_store_set (model, &child_iter, 0 ,  treport->name,1, treport->id, 2, 
+				g_strconcat(get_dir_name(self->app_data->template->file_name),"/",treport->image_file,NULL), -1);
+
+			for (l_tmp2=g_list_first(self->app_data->reports);l_tmp2 != NULL; l_tmp2 = l_tmp2->next) {
+				report = (BimaForm *) l_tmp2->data;
+				if (!g_ascii_strcasecmp(treport->id, report->template_id)) {
+					gtk_tree_store_append ( model,&grand_iter ,&child_iter );
+					gtk_tree_store_set (model, &grand_iter, 0, report->name,1, report->id, -1);
+				}
+			}
+		}
+	 }
+
+	public 
+	void show_forms(self)
+	{
+		GtkTreeStore *model;
+		//GtkTreeIter iter,
+		GtkTreeIter child_iter, grand_iter;
+
+		GList *l_tmp, *l_tmp2;
+		BimaForm *form;
+		BimaTemplateForm *tform;
+
+		model = GTK_TREE_STORE (gtk_tree_view_get_model(GTK_TREE_VIEW (self->step2_main_treeview)));
+		gtk_tree_store_clear(GTK_TREE_STORE(model));
+
+//		g_printf("load form gui %d\n",g_list_length(self->app_data->template->tforms));
+
+		//gtk_tree_store_append ( model,&iter,NULL);
+		//gtk_tree_store_set (model, &iter, 0 , "Reports", 1, "parent",-1);
+
+		for (l_tmp=g_list_first(self->app_data->template->tforms);l_tmp != NULL; l_tmp = l_tmp->next) {
+//			g_printf("tform %s %s %s\n",tform->id,tform->name,tform->image_file);
+			tform = (BimaTemplateForm *) (l_tmp->data);
+			gtk_tree_store_append ( model,&child_iter ,NULL);
+			gtk_tree_store_set (model, &child_iter, 0 ,  tform->name,1, tform->id, 2 ,
+				g_strconcat(get_dir_name(self->app_data->template->file_name),"/",tform->image_file,NULL), -1);
+
+			for (l_tmp2=g_list_first(self->app_data->forms);l_tmp2 != NULL; l_tmp2 = l_tmp2->next) {
+				form = (BimaForm *) l_tmp2->data;
+				if (!g_ascii_strcasecmp(tform->id, form->template_id)) {
+					gtk_tree_store_append ( model,&grand_iter ,&child_iter );
+					gtk_tree_store_set (model, &grand_iter, 0, form->name,1, form->id, 2, tform->image_file, -1);
+				}
+			}
+		}
+		
+	 }
+
+	public void
+	show_current_state(self)
+	{
+		GtkTreeIter iter;
+
+		switch (self->state) {
+			case STATE_PARSE:
+				gtk_notebook_set_current_page(GTK_NOTEBOOK (self->main_notebook),self->state);
+				break;
+			case STATE_TABLE:
+				self->cur_obj = NULL;
+				gtk_notebook_set_show_tabs (GTK_NOTEBOOK (self->step2_main_notebook), FALSE);
+				gtk_notebook_set_show_border (GTK_NOTEBOOK (self->step2_main_notebook), FALSE);
+				gtk_notebook_set_current_page(GTK_NOTEBOOK (self->step2_main_notebook),1);
+				gtk_notebook_set_current_page(GTK_NOTEBOOK (self->main_notebook),self->state);
+				//bima_property_empty_hash();				
+				bima_app_gui_show_modules(self,NULL, NULL,iter);
+				//bima_app_gui_show_tables(self);
+				break;
+			case STATE_VIEW:
+			
+				bima_app_data_populate_views(self->app_data);
+				self->cur_obj = NULL;
+				gtk_notebook_set_show_tabs (GTK_NOTEBOOK (self->step2_main_notebook), TRUE);
+				gtk_notebook_set_show_border (GTK_NOTEBOOK (self->step2_main_notebook), TRUE);
+				gtk_notebook_set_current_page(GTK_NOTEBOOK (self->main_notebook),STATE_TABLE);
+				gtk_notebook_set_current_page(GTK_NOTEBOOK (self->step2_main_notebook),0);
+				//bima_property_empty_hash();
+				bima_app_gui_show_views(self);
+				break;
+			case STATE_REPORT:
+			//fill_step4(); //report
+				self->cur_obj = NULL;
+				bima_app_data_populate_forms(self->app_data);
+				gtk_notebook_set_show_tabs (GTK_NOTEBOOK (self->step2_main_notebook), TRUE);
+				gtk_notebook_set_show_border (GTK_NOTEBOOK (self->step2_main_notebook), TRUE);
+				gtk_notebook_set_current_page(GTK_NOTEBOOK (self->main_notebook),STATE_TABLE);
+				gtk_notebook_set_current_page(GTK_NOTEBOOK (self->step2_main_notebook),0);
+				//bima_property_empty_hash();
+				bima_app_gui_show_reports(self);
+				break;
+			case STATE_FORM:
+			//fill_step5(); //form
+				//break;
+				self->cur_obj = NULL;
+				//bima_app_data_populate_forms(self->app_data);
+				gtk_notebook_set_show_tabs (GTK_NOTEBOOK (self->step2_main_notebook), TRUE);
+				gtk_notebook_set_show_border (GTK_NOTEBOOK (self->step2_main_notebook), TRUE);
+				gtk_notebook_set_current_page(GTK_NOTEBOOK (self->main_notebook),STATE_TABLE);
+				gtk_notebook_set_current_page(GTK_NOTEBOOK (self->step2_main_notebook),0);
+				//bima_property_empty_hash();
+				bima_app_gui_show_forms(self);
+				break;
+			case STATE_OPTION:
+			//fill_step6(); //fill other option (output dir , ...)
+				gtk_notebook_set_current_page(GTK_NOTEBOOK (self->main_notebook),STATE_TABLE+1);
+
+				self->cur_obj = (GObject *) (self->app_data);
+				//bima_property_empty_hash();
+				if (self->app_data->output_dir != NULL ) 
+					gtk_entry_set_text(self->step5_output_dir_entry , self->app_data->output_dir);
+				//load_option_property(self);
+				break;
+			case STATE_GENERATE:
+				gtk_notebook_set_current_page(GTK_NOTEBOOK (self->main_notebook),STATE_TABLE+2);
+				self->cur_obj = NULL;
+				break;
+		}
+
+	}
+	
+	public GtkWidget*
+	new (void)
+	{
+		return (GtkWidget*) GET_NEW;
+	}
+
+} 

@@ -1,0 +1,61 @@
+requires 2.0.0
+
+%headertop{
+#include <stdio.h>
+#include <stdlib.h>
+#include "bma-appgui.h"
+%}
+
+class Bma:Plugin from G:Object { 
+	public gchar *name = { NULL }
+		destroywith g_free;
+
+	public void *
+	activate( self, BmaAppGui *appgui)
+	{
+		return;
+	}
+
+	public void *
+	deactivate( self, BmaAppGui *appgui)
+	{
+		return;
+	}
+
+	public void *
+	generate( FILE *ofile, gchar *token , BmaAppGui *appgui)
+	{
+		return;
+	}
+
+}
+
+%{
+#define BMA_PLUGIN_REGISTER_TYPE(ClassName, plugin_name) 	\
+															\
+GType														\
+plugin_name##_get_type (void)								\
+{															\
+	static GType type = 0;									\
+															\
+	if (type == 0) {										\
+		static const GTypeInfo info = {						\
+			sizeof (ClassName##Class),						\
+			(GBaseInitFunc) NULL,							\
+			(GBaseFinalizeFunc) NULL,						\
+			(GClassInitFunc) plugin_name##_class_init,		\
+			(GClassFinalizeFunc) NULL,						\
+			NULL /* class_data */,							\
+			sizeof (ClassName),								\
+			0 /* n_preallocs */,							\
+			(GInstanceInitFunc) plugin_name##_init,			\
+			NULL											\
+		};													\
+															\
+		type = g_type_register_static (BMA_TYPE_PLUGIN, #ClassName, &info, (GTypeFlags)0);		\
+	}														\
+															\
+	return type;											\
+}
+
+%}

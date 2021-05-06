@@ -1,0 +1,101 @@
+/***************************************************************************
+ *            module.gob
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+ 
+requires 2.0.0
+
+%headertop{
+#include <stdio.h>
+%}
+
+class Bima:Module from G:Object { 
+	public gchar *id = { NULL }
+		destroywith g_free;
+	property STRING id
+		(nick = "id",
+		 blurb = "id of module",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *name = { NULL }
+		destroywith g_free;
+	property STRING name
+		(nick = "name",
+		 blurb = "name of module",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *description = { NULL }
+		destroywith g_free;
+	property STRING description
+		(nick = "description",
+		 blurb = "description of module",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+//	public gchar *scheme = { NULL }
+//		destroywith g_free;
+
+	public gchar *parent_id = { NULL }
+		destroywith g_free;
+
+	public void
+	write_to_xml( self , FILE *ofile )
+	{
+		if (self->parent_id)
+			fprintf(ofile, "\t<Module id=\"%s\" name=\"%s\"  parent_id=\"%s\">\n", \ 
+					self->id, self->name, self->parent_id  );
+		else
+			fprintf(ofile, "\t<Module id=\"%s\" name=\"%s\" >\n", \ 
+					self->id, self->name);
+		
+		if (self->description)
+			fprintf(ofile, "\t\t<Description>%s</Description>", self->description);
+
+		fprintf(ofile, "\t</Module>\n");
+	}
+
+
+	public BimaModule *
+	new (void)
+	{
+		return GET_NEW;
+	}
+	
+	public BimaModule *
+	new_with_id(gchar *id , gchar *parent_id)
+	{
+		BimaModule *module = bima_module_new();
+		if (!module)
+			return NULL;
+
+		module->id = id;	
+		if (parent_id != NULL)	
+			module->parent_id = g_strdup(parent_id); 
+		return module;
+	}
+
+}

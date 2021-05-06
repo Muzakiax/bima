@@ -1,0 +1,195 @@
+/***************************************************************************
+ *            relation.gob
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+
+requires 2.0.0
+
+%headertop{
+#include "bima-attribute.h"
+#include "bima-connection.h"
+#include "bima-foreign-key.h"
+%}
+
+class Bima:Relation from G:Object { 
+	public gchar *id = { NULL }
+		destroywith g_free;
+	property STRING id
+		(nick = "id",
+		 blurb = "id of relation",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+	public gchar *name = { NULL }
+		destroywith g_free;
+	property STRING name
+		(nick = "name",
+		 blurb = "name of relation",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+	public gchar *abbreviation = { NULL }
+		destroywith g_free;
+	public gchar *description = { NULL }
+		destroywith g_free;
+
+	public gchar *module_id = { NULL }
+		destroywith g_free;
+	property STRING module_id
+		(nick = "module id",
+		 blurb = "module of relation",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public GList *attributes = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+		};
+	public gint  num_of_attribute = 0;
+	public GList *foreign_key = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+		};
+	public gint  num_of_foreign_key = 0;
+
+	public gchar *left_card = { g_strdup("1");}
+		destroywith g_free;
+	public gchar *right_card = { g_strdup("1");}
+		destroywith g_free;
+	public gboolean is_rotated = FALSE;
+	public gint num_of_connection=0;
+	public gint rel_type;
+	
+	public GList *connections = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+		};
+			
+	public void
+	add_attribute( self, BimaAttribute *attribute)
+	{
+		//g_printf("%s : %s \n", self->name, attribute->name);
+		self->attributes = g_list_append(self->attributes, (gpointer) attribute);
+		attribute->parent = (GObject *) self;
+		self->num_of_attribute++;
+	}
+
+	public int
+	get_num_of_attribute(self) {
+		return self->num_of_attribute; 
+	}
+
+	public GList *
+	get_attributes(self) {
+		return self->attributes; 
+	}
+
+	
+	public void
+	add_foreign_key( self, BimaForeignKey *fk)
+	{
+		self->foreign_key = g_list_append(self->foreign_key, (gpointer) fk);
+		self->num_of_foreign_key++;
+	}
+
+	// return attribute  
+	// or foreign key
+	public 
+	GObject *get_nth_attribute(self, gint n)
+	{
+		GList *list=NULL;
+		
+		gint i;
+		i=0;
+		for (list=g_list_first(self->attributes);list != NULL; list = list->next){
+			//g_printf("Ent %d of %d \n", i, n);
+			if (i==n)
+				return (GObject *) (list->data);
+			i++;			
+		}
+		for (list=g_list_first(self->foreign_key);list != NULL; list = list->next){
+			//g_printf("Ent %d of %d \n", i, n);
+			if (i==n)
+				return (GObject *) (list->data);
+			i++;			
+		}
+		return NULL;
+	}
+		
+	public void
+	add_connection( self, BimaConnection *conn)
+	{
+		self->connections = g_list_append(self->connections, (gpointer) conn);
+		self->num_of_connection++;
+	}
+
+	public void
+	write_to_xml( self , FILE *ofile )
+	{
+		GList *list;
+
+		fprintf(ofile, "\t<Relation id=\"%s\" name=\"%s\" module=\"%s\" abbreviation=\"%s\" left_card=\"%s\" right_card=\"%s\" is_rotated=\"%d\">\n", \ 
+			self->id , self->name, self->module_id, self->abbreviation, self->left_card, self->right_card, self->is_rotated);
+
+		//if (self->description)
+		//	fprintf(ofile, "\t\t<Description>%s</Description>", self->description);
+		
+		if ( self->attributes) {
+			fprintf(ofile, "\t\t<Attributes>\n");
+			for (list=g_list_first(self->attributes);list != NULL; list = list->next){
+				if (list->data) 
+					bima_attribute_write_to_xml((BimaAttribute *) list->data, ofile);			
+			}		
+			fprintf(ofile, "\t\t</Attributes>\n");
+		}
+
+		if (self->foreign_key) {
+			fprintf(ofile, "\t\t<ForeignKeys>\n");
+			for (list=g_list_first(self->foreign_key);list != NULL; list = list->next){
+				if (list->data) 
+					bima_foreign_key_write_to_xml((BimaForeignKey *) list->data, ofile);			
+			}
+			fprintf(ofile, "\t\t</ForeignKeys>\n");
+		}
+		fprintf(ofile, "\t</Relation>\n");
+	}
+			
+	public BimaRelation*
+	new (void)
+	{
+		return GET_NEW;
+	}
+
+}

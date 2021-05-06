@@ -1,0 +1,19 @@
+requires 2.0.0
+
+%headertop{
+#include "bima-entity.h"
+%}
+
+class Bima:Participation from G:Object { 
+	public gboolean is_total = FALSE;
+	public gint connection;
+	public gchar *entity_id;
+
+	public GObject *parent;
+
+	public BimaParticipation*
+	new (void)
+	{
+		return GET_NEW;
+	}
+}

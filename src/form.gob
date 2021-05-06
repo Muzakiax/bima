@@ -1,0 +1,125 @@
+/***************************************************************************
+ *            form.gob
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+
+%headertop{
+#include "bima-property.h"
+%}
+
+
+requires 2.0.0
+
+class Bima:Form from G:Object { 
+	public gchar *id = { NULL }
+		destroywith g_free;
+	property STRING id
+		(nick = "id",
+		 blurb = "id of entity",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+	public gchar *name = { NULL }
+		destroywith g_free;
+	property STRING name
+		(nick = "name",
+		 blurb = "name of entity",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *title  = NULL			
+		destroywith g_free;
+	property STRING title
+		(nick = "title",
+		 blurb = "title of attribute",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *primary_obj_id = { NULL }
+		destroywith g_free;
+	property STRING primary_obj_id
+		(nick = "primary_obj_id",
+		 blurb = "id of obj",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *description = { NULL }
+		destroywith g_free;
+	property STRING description
+		(nick = "description",
+		 blurb = "description of entity",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *sql_text = { NULL }
+		destroywith g_free;
+	property STRING sql_text
+		(nick = "sql_text",
+		 blurb = "sql_text of view",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *template_id = { NULL }
+		destroywith g_free;
+
+	public gchar *module_id = { NULL }
+		destroywith g_free;
+
+
+	public GList *properties = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data);
+			}
+		};
+
+	public void 
+	copy_properties(self, GList *properties) 
+	{
+		GList *list;
+		BimaProperty *prop;
+
+		for (list=g_list_first(properties);list != NULL; list = list->next){
+			if (list->data) {
+				prop = bima_property_copy( (BimaProperty *)(list->data) );
+				self->properties = g_list_append(self->properties, (gpointer) prop);			
+			}
+		}
+	}
+			
+	public BimaForm*
+	new (void)
+	{
+		return GET_NEW;
+	}
+
+}

@@ -1,0 +1,69 @@
+requires 2.0.0
+
+class Bima:View from G:Object { 
+	public gchar *id = { NULL }
+		destroywith g_free;
+	property STRING id
+		(nick = "id",
+		 blurb = "id of view",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+	public gchar *name = { NULL }
+		destroywith g_free;
+	property STRING name
+		(nick = "name",
+		 blurb = "name of view",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *title = { NULL }
+		destroywith g_free;
+	property STRING title
+		(nick = "title",
+		 blurb = "title of view",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+		
+	public gchar *primary_obj_id = { NULL }
+		destroywith g_free;
+	property STRING primary_obj_id
+		(nick = "primary_obj_id",
+		 blurb = "id of obj",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+		
+	public gchar *description = { NULL }
+		destroywith g_free;
+	property STRING description
+		(nick = "description",
+		 blurb = "description of view",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+
+	public gchar *sql_text = { NULL }
+		destroywith g_free;
+	property STRING sql_text
+		(nick = "sql_text",
+		 blurb = "sql_text of view",
+		 default_value = NULL,
+		 export,
+		 link
+		);
+		
+	public BimaView*
+	new (void)
+	{
+		return GET_NEW;
+	}
+}
+

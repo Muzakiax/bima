@@ -1,0 +1,70 @@
+#                                               -*- Autoconf -*-
+# Process this file with autoconf to produce a configure script.
+
+AC_PREREQ(2.59)
+AC_INIT
+AM_INIT_AUTOMAKE(bima, 0.1)
+AM_CONFIG_HEADER([config.h])
+AM_MAINTAINER_MODE
+AC_DISABLE_STATIC
+AM_PROG_LIBTOOL
+
+# Checks for programs.
+AC_ISC_POSIX
+AC_PROG_CC
+AM_PROG_LEX
+AC_PROG_YACC
+AM_PROG_CC_STDC
+AC_HEADER_STDC
+
+#packageplugindir=`eval echo ${datadir}/plugin`
+#AC_DEFINE_UNQUOTED(BIMA_PLUGIN_DIR,"${packageplugindir}", [Bima plugin dir])
+
+# Checks for libraries.
+PKG_CHECK_MODULES(PACKAGE, [
+	gtk+-2.0 >= 2.0.0
+	glib-2.0 >= 2.0.0
+	gmodule-2.0 >= 2.0.0
+	libxml-2.0 >= 2.0.0
+	])
+AC_SUBST(PACKAGE_CFLAGS)
+AC_SUBST(PACKAGE_LIBS)
+
+GETTEXT_PACKAGE=bima
+AC_SUBST(GETTEXT_PACKAGE)
+AC_DEFINE_UNQUOTED(GETTEXT_PACKAGE,"$GETTEXT_PACKAGE", [Gettext package.])
+
+dnl Add the languages which your application supports here.
+ALL_LINGUAS=""
+AM_GLIB_GNU_GETTEXT
+
+
+# Checks for header files.
+AC_HEADER_STDC
+AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+
+# Checks for library functions.
+AC_FUNC_MALLOC
+AC_FUNC_REALLOC
+AC_CHECK_FUNCS([memset strchr strdup strstr])
+
+PLUGIN_LIBTOOL_FLAGS="-module -avoid-version"
+AC_SUBST(PLUGIN_LIBTOOL_FLAGS)
+
+AC_CONFIG_FILES([
+		   Makefile
+           doc/Makefile
+           src/Makefile
+           po/Makefile.in
+           plugin/Makefile
+           plugin/cgtk/Makefile
+           plugin/phpweb/Makefile
+           template/Makefile
+           template/cgtk/Makefile
+           template/php/Makefile
+           ])
+
+AC_OUTPUT

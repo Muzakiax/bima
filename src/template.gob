@@ -1,0 +1,277 @@
+/***************************************************************************
+ *            template.gob
+ *
+ *  Copyright  2006  Anas Muzakir
+ *  anas.muzakir@gmail.com
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+
+requires 2.0.0
+
+%headertop{
+#include <libxml/parser.h>
+#include <libxml/tree.h>
+#include <gmodule.h>
+
+#include "bima-template-form.h"
+#include "file-utils.h"
+#include "bima-plugin.h"
+
+#ifndef __BIMA_PLUGIN_TEMPLATE__
+#define __BIMA_PLUGIN_TEMPLATE__
+typedef GType (*GetPluginType) (void);
+#endif
+
+#ifndef __TYPEDEF_BIMA_PLUGIN__
+#define __TYPEDEF_BIMA_PLUGIN__
+typedef struct _BimaPlugin BimaPlugin;
+#endif
+
+%}
+
+class Bima:Template from G:Object { 
+	public gchar *file_name = NULL
+		destroywith g_free;
+
+	public gchar *directory = NULL
+		destroywith g_free;
+
+	public gchar *app_type = NULL
+		destroywith g_free;
+
+	public gchar *author = NULL
+		destroywith g_free;
+	
+	public gchar *description = NULL
+		destroywith g_free;
+
+	public gchar *plugin_file = NULL
+		destroywith g_free;
+
+	public BimaPlugin *plugin = NULL	
+		destroy {
+			if (plugin) 
+				g_object_unref((GObject *) plugin); 
+		};
+	
+	public GModule *module = NULL
+			destroy {
+			if (module) 
+				g_module_close(module); 
+		};
+	
+	public GList *tentities = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+		};
+	
+	public void
+	add_tentity( self, BimaTemplateForm *tentity)
+	{
+		self->tentities = g_list_append(self->tentities, (gpointer) tentity);
+	}
+			
+	public GList *tforms = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+		};
+	
+	public void
+	add_tform( self, BimaTemplateForm *tform)
+	{
+		self->tforms = g_list_append(self->tforms, (gpointer) tform);
+	}
+	
+	public GList *treports = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+		};
+	
+	public void
+	add_treport( self, BimaTemplateForm *treport)
+	{
+		self->treports = g_list_append(self->treports, (gpointer) treport);
+	}
+
+	public GList *tadditions = NULL
+		destroy {
+			GList *list;
+			for (list=g_list_first(VAR);list != NULL; list = list->next){
+				if (list->data) 
+					g_object_unref((GObject *) list->data); 
+			}
+		};
+	
+	public void
+	add_taddition( self, BimaTemplateForm *taddition)
+	{
+		self->tadditions = g_list_append(self->tadditions, (gpointer) taddition);
+	}
+	
+	public
+	gboolean load_plugin(self) {
+		GetPluginType get_plugin_type;
+		
+		self->module = g_module_open(g_strconcat(PACKAGE_PLUGIN_DIR,"/", self->plugin_file,NULL), G_MODULE_BIND_LAZY);
+		if (self->module) {
+			g_printf("module loaded \n");
+			if (!g_module_symbol(self->module, "get_plugin_type", (void *)&get_plugin_type)) {
+				g_warning("can't find get_plugin_type symbol in module");
+				return FALSE;
+			}
+			self->plugin = g_object_new(get_plugin_type(),NULL);
+			
+			if (!self->plugin)
+				return FALSE;
+				
+		} else {
+			g_warning("can't load module");
+			g_warning(g_module_error());							
+			return FALSE;
+		}
+		return TRUE;
+	}
+	
+	public 
+	void load_from_file(self, gchar *file_name)
+	{
+		xmlDocPtr xml_doc;
+		xmlNodePtr xml_node, xml_root_node, xml_node2;
+		BimaTemplateForm *tform ;
+		
+		self->file_name = g_strdup(file_name);
+		
+		self->tforms = NULL;
+		self->treports = NULL;
+		xml_doc = xmlParseFile(file_name);
+		if (xml_doc)  {
+			xml_root_node = xmlDocGetRootElement(xml_doc);
+			if (!xmlStrcmp(xml_root_node->name, (const xmlChar *) "BimaTemplate")) {
+				self->directory = g_strconcat(get_dir_name(file_name),"/",xmlGetProp(xml_root_node,"dir"),NULL);
+				self->app_type = xmlGetProp(xml_root_node,"app_type");
+				self->author = xmlGetProp(xml_root_node,"author");			
+				self->plugin_file = xmlGetProp(xml_root_node,"plugin");
+				
+				//printf("%s",template_profile->dir );
+				xml_node = xml_root_node->children;
+				while (xml_node != NULL) {
+					if (!xmlStrcmp(xml_node->name, (const xmlChar *) "Forms")) {
+						xml_node2 = xml_node->children;
+						while (xml_node2 ) {
+							if (xmlGetProp(xml_node2,"id")) {
+								tform = bima_template_form_new();
+								bima_template_form_load_from_xml(tform,xml_node2);
+								bima_template_add_tform(self, tform);
+							}
+							xml_node2=xml_node2->next;
+						}
+					} 
+					else if (!xmlStrcmp(xml_node->name, (const xmlChar *) "Reports")) {
+						xml_node2 = xml_node->children;
+						while (xml_node2 ) {
+							if (xmlGetProp(xml_node2,"id")) {
+								tform = bima_template_form_new();
+								
+								bima_template_form_load_from_xml(tform,xml_node2);
+								//g_printf(" report id %s\n", tform->id);
+								bima_template_add_treport(self, tform);
+							}
+							xml_node2=xml_node2->next;
+						}
+					}
+					else if (!xmlStrcmp(xml_node->name, (const xmlChar *) "Entity")) {
+						//xml_node2 = xml_node->children;
+						//while (xml_node2 ) {
+							if (xmlGetProp(xml_node,"name")) {
+								tform = bima_template_form_new();
+								bima_template_form_load_from_xml(tform,xml_node);
+								bima_template_add_tentity(self, tform);
+							}
+						//	xml_node2=xml_node2->next;
+						//}
+					}					
+					else if (!xmlStrcmp(xml_node->name,(const xmlChar *) "Additions")) {
+						xml_node2 = xml_node->children;
+						while (xml_node2 ) {
+							if (xmlGetProp(xml_node2,"name")) {
+								tform = bima_template_form_new();
+								bima_template_form_load_from_xml(tform,xml_node2);
+								bima_template_add_taddition(self, tform);
+							}
+							xml_node2=xml_node2->next;
+						}
+					}
+					xml_node = xml_node->next;
+				}
+			}
+			xmlFreeDoc(xml_doc);
+		}
+		bima_template_load_plugin(self);
+	}
+		
+	public BimaTemplate*
+	new (void)
+	{
+		return GET_NEW;
+	}
+
+}
+
+/*
+if gcc -DHAVE_CONFIG_H -I. -I. -I.. -Wall -DPACKAGE_DATA_DIR=\""/usr/local/share"\" -DPACKAGE_LOCALE_DIR=\""/usr/local/share/locale"\" -I/usr/include/gtk-2.0 -I/usr/lib/gtk-2.0/include -I/usr/include/atk-1.0 -I/usr/include/cairo -I/usr/include/pango-1.0 -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/libxml2      -g -O2 -MT main.o -MD -MP -MF ".deps/main.Tpo" -c -o main.o main.c; \
+then mv -f ".deps/main.Tpo" ".deps/main.Po"; else rm -f ".deps/main.Tpo"; exit 1; fi
+
+if /bin/sh ../../libtool --tag=CC --mode=compile gcc -DHAVE_CONFIG_H -I. -I. -I../.. -Wall -I../.. -I../../src -DPACKAGE_DATA_DIR=\""/home/anas/install/share"\" -DPACKAGE_LOCALE_DIR=\""/home/anas/install/share/locale"\" -I/usr/include/gtk-2.0 -I/usr/lib/gtk-2.0/include -I/usr/include/atk-1.0 -I/usr/include/cairo -I/usr/include/pango-1.0 -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/libxml2      -g -O2 -MT bima-cgtk.lo -MD -MP -MF ".deps/bima-cgtk.Tpo" -c -o bima-cgtk.lo bima-cgtk.c; \
+
+/bin/sh ../../libtool --tag=CC --mode=link gcc  -g -O2   -o libcgtk.la -rpath /usr/local/lib/bima/plugins -module -avoid-version bima-cgtk.lo
+gcc -shared  .libs/bima-cgtk.o   -Wl,-soname -Wl,libcgtk.so -o .libs/libcgtk.so
+ar cru .libs/libcgtk.a  bima-cgtk.o
+ranlib .libs/libcgtk.a
+creating libcgtk.la
+(cd .libs && rm -f libcgtk.la && ln -s ../libcgtk.la libcgtk.la)
+
+/bin/sh ../../libtool --tag=CC --mode=link gcc  -g -O2   -o libcgtk.la -rpath /usr/local/lib/bima/plugins -module -avoid-version bima-cgtk.lo
+rm -fr  .libs/libcgtk.a .libs/libcgtk.la .libs/libcgtk.lai .libs/libcgtk.so
+gcc -shared  .libs/bima-cgtk.o   -Wl,-soname -Wl,libcgtk.so -o .libs/libcgtk.so
+creating libcgtk.la
+(cd .libs && rm -f libcgtk.la && ln -s ../libcgtk.la libcgtk.la)
+[
+
+/bin/sh ../../libtool --tag=CC --mode=link gcc -O0 -g -Wall -Wmissing-prototypes -Wmissing-declarations -Wparentheses -Wpointer-arith -g -O2   -o libanjuta-sample.la -rpath /usr//lib/anjuta  plugin.lo ../../libanjuta/libanjuta.la
+rm -fr  .libs/libanjuta-sample.la .libs/libanjuta-sample.lai .libs/libanjuta-sample.so .libs/libanjuta-sample.so.0 .libs/libanjuta-sample.so.0.0.0 .libs/libanjuta-sample.so.0.0.0T
+gcc -shared  .libs/plugin.o  -Wl,--rpath -Wl,/home/anas/Sources/anjuta-2.0.2/libanjuta/.libs -Wl,--rpath -Wl,/usr//lib ../../libanjuta/.libs/libanjuta.so  -Wl,-soname -Wl,libanjuta-sample.so.0 -o .libs/libanjuta-sample.so.0.0.0
+(cd .libs && rm -f libanjuta-sample.so.0 && ln -s libanjuta-sample.so.0.0.0 libanjuta-sample.so.0)
+(cd .libs && rm -f libanjuta-sample.so && ln -s libanjuta-sample.so.0.0.0 libanjuta-sample.so)
+creating libanjuta-sample.la
+(cd .libs && rm -f libanjuta-sample.la && ln -s ../libanjuta-sample.la libanjuta-sample.la)
+
+sample_plugin: bima-sample-plugin.c bima-sample-plugin.h bima-plugin.h bima-app-gui.h
+	gcc -fPIC -c bima-sample-plugin.c -o bima-sample-plugin.o `pkg-config --cflags gtk+-2.0 gmodule-2.0` `xml2-config --cflags`
+	gcc -shared -o bima-sample-plugin.so bima-sample-plugin.o 
+
+*/
